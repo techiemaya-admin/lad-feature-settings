@@ -22,7 +22,10 @@ try {
 class VoiceAgentClient {
   constructor() {
     // External voice agent service (voag.techiemaya.com)
-    this.baseUrl = process.env.BASE_URL || process.env.VOICE_AGENT_BASE_URL || 'http://localhost:3000';
+    this.baseUrl = process.env.BASE_URL || process.env.VOICE_AGENT_BASE_URL;
+    if (!this.baseUrl) {
+      throw new Error('BASE_URL or VOICE_AGENT_BASE_URL environment variable is required');
+    }
     this.frontendHeader = process.env.BASE_URL_FRONTEND_HEADER || 'settings';
     this.apiKey = process.env.BASE_URL_FRONTEND_APIKEY || '';
     this.timeout = 30000; // 30 seconds
