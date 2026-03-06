@@ -575,3 +575,4 @@ module.exports = {
   getLegacyCreditBalance,
   listLegacyCreditTransactions
 };
+

@@ -290,3 +290,4 @@ jobs:
             echo "See workflow logs for sync errors"
           fi
           exit 1
+          

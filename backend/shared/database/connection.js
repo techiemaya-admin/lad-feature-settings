@@ -23,6 +23,7 @@ function parseDatabaseUrl(databaseUrl) {
   }
 }
 
+
 // Parse DATABASE_URL if provided (takes priority)
 const urlConfig = parseDatabaseUrl(process.env.DATABASE_URL);
 

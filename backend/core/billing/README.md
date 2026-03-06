@@ -653,3 +653,4 @@ For issues or questions:
 - Review test output: `node scripts/test-billing-system.js`
 - Verify pricing: `SELECT * FROM billing_pricing_catalog`
 - Check wallet: `SELECT * FROM billing_wallets WHERE tenant_id = 'xxx'`
+

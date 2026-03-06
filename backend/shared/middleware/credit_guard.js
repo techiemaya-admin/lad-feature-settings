@@ -54,6 +54,7 @@
  * - Feature adoption metrics
  */
 
+
 const { pool } = require('../database/connection');
 const logger = require('../../core/utils/logger');
 
