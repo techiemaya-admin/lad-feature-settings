@@ -1042,5 +1042,3 @@ router.get('/packages', async (req, res) => {
 
 module.exports = router;
 
-
-
