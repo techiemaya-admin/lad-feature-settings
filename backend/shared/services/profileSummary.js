@@ -382,3 +382,4 @@ module.exports.generateProfileSummary = generateProfileSummary;
 
  
   
+\n
