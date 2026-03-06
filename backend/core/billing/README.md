@@ -654,3 +654,5 @@ For issues or questions:
 - Verify pricing: `SELECT * FROM billing_pricing_catalog`
 - Check wallet: `SELECT * FROM billing_wallets WHERE tenant_id = 'xxx'`
 
+
+
