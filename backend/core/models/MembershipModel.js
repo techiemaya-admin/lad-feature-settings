@@ -416,5 +416,3 @@ module.exports = MembershipModel;
 
 
  
-  
-\n
