@@ -1,49 +1,49 @@
 /**
  * Core SaaS Platform Application
- * 
+ *
  * PURPOSE:
  * This is the main application entry point for a production-grade SaaS platform.
  * It implements a feature-based architecture where:
- * 
+ *
  * 1. CORE PLATFORM: Always-available services (auth, billing, users)
  * 2. OPTIONAL FEATURES: Client-specific features loaded dynamically based on their subscription plan
  * 3. FEATURE FLAGS: Database-backed system for controlling feature access per client
  * 4. DYNAMIC LOADING: Features are registered and loaded only when clients have access
- * 
+ *
  * ARCHITECTURE BENEFITS:
  * - Multi-tenant: Each client gets features based on their plan
  * - Scalable: Add new features without touching core platform
  * - Secure: Feature access is enforced at middleware level
  * - Billing-ready: Credit tracking and usage monitoring built-in
  * - Zero-downtime: Features can be enabled/disabled without restarts
- * 
+ *
  * USAGE:
  * const CoreApplication = require('./core/app');
  * const app = new CoreApplication();
  * await app.start(3000);
- * 
+ *
  * ENDPOINTS:
  * /api/auth/*     - Authentication (always available)
- * /api/billing/*  - Billing & plans (always available) 
+ * /api/billing/*  - Billing & plans (always available)
  * /api/users/*    - User management (always available)
  * /api/features   - Get client's enabled features
  * /api/{feature}/* - Dynamic feature routes (access controlled)
  */
 
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const { FeatureRegistry } = require('./feature_registry');
-const { FeatureFlagService } = require('../feature_flags/service');
-const authRoutes = require('./auth/routes');
-const billingRoutes = require('./billing/routes');
-const userRoutes = require('./users/routes');
-const { authenticateToken } = require('./middleware/auth');
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const { FeatureRegistry } = require("./feature_registry");
+const { FeatureFlagService } = require("../feature_flags/service");
+const authRoutes = require("./auth/routes");
+const billingRoutes = require("./billing/routes");
+const userRoutes = require("./users/routes");
+const { authenticateToken } = require("./middleware/auth");
 
-const { trackClientFeatures } = require('./middleware/feature_tracking');
-const { getSocketService } = require('../shared/services/socketService');
-const logger = require('./utils/logger');
-const http = require('http');
+const { trackClientFeatures } = require("./middleware/feature_tracking");
+const { getSocketService } = require("../shared/services/socketService");
+const logger = require("./utils/logger");
+const http = require("http");
 
 class CoreApplication {
   constructor() {
@@ -57,67 +57,69 @@ class CoreApplication {
 
   setupMiddleware() {
     // Get allowed origins from environment variable
-    const envOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
+    const envOrigins = process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(",")
+      : [];
 
     // Allow multiple origins for CORS
     const allowedOrigins = [
       ...envOrigins,
-      'https://lad-frontend-3nddlneyya-uc.a.run.app',
-      'https://lad-frontend-741719885039.us-central1.run.app',
-      'https://lad-frontend-develop-741719885039.us-central1.run.app',
-      'https://lad-frontend-develop-m33ggxz7iq-uc.a.run.app',
-      'https://lad-frontend-stage-3nddlneyya-uc.a.run.app',
-      'https://www.mrlads.com',
-      'https://app.mrlads.com',
-      'https://dev.mrlads.com',
-      'https://stage.mrlads.com',
-      process.env.FRONTEND_URL
+      "https://lad-frontend-3nddlneyya-uc.a.run.app",
+      "https://lad-frontend-741719885039.us-central1.run.app",
+      "https://lad-frontend-develop-741719885039.us-central1.run.app",
+      "https://lad-frontend-develop-m33ggxz7iq-uc.a.run.app",
+      "https://lad-frontend-stage-3nddlneyya-uc.a.run.app",
+      "https://www.mrlads.com",
+      "https://app.mrlads.com",
+      "https://dev.mrlads.com",
+      "https://stage.mrlads.com",
+      process.env.FRONTEND_URL,
     ].filter(Boolean);
 
-    this.app.use(cors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
+    this.app.use(
+      cors({
+        origin: (origin, callback) => {
+          // Allow requests with no origin (like mobile apps or curl)
+          if (!origin) return callback(null, true);
 
-        logger.debug('[CORS] Origin check', { origin, allowedOrigins });
+          logger.debug("[CORS] Origin check", { origin, allowedOrigins });
 
-        if (allowedOrigins.indexOf(origin) !== -1) {
-          callback(null, true);
-        } else {
-          logger.warn('[CORS] Blocked origin', { origin });
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      credentials: true, // Allow cookies to be sent
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-Requested-With',
-        'Accept',
-        'Origin',
-        'Cache-Control',
-        'Pragma',
-        'Accept-Encoding',
-        'Accept-Language',
-        'Connection',
-        'Host',
-        'Referer',
-        'User-Agent'
-      ],
-      exposedHeaders: [
-        'Content-Range',
-        'X-Content-Range'
-      ],
-      preflightContinue: false, // Let cors handle preflight
-      optionsSuccessStatus: 204 // Success status for preflight
-    }));
+          if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+          } else {
+            logger.warn("[CORS] Blocked origin", { origin });
+            callback(new Error("Not allowed by CORS"));
+          }
+        },
+        credentials: true, // Allow cookies to be sent
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allowedHeaders: [
+          "Content-Type",
+          "Authorization",
+          "X-Requested-With",
+          "Accept",
+          "Origin",
+          "Cache-Control",
+          "Pragma",
+          "Accept-Encoding",
+          "Accept-Language",
+          "Connection",
+          "Host",
+          "Referer",
+          "User-Agent",
+        ],
+        exposedHeaders: ["Content-Range", "X-Content-Range"],
+        preflightContinue: false, // Let cors handle preflight
+        optionsSuccessStatus: 204, // Success status for preflight
+      }),
+    );
 
     // Mount Stripe webhook BEFORE json parser (needs raw body)
     // Note: Only the webhook route is mounted here, other Stripe routes mounted later
-    this.app.use('/api/stripe/webhook',
-      express.raw({ type: 'application/json' }),
-      require('./billing/routes/stripe.routes')
+    this.app.use(
+      "/api/stripe/webhook",
+      express.raw({ type: "application/json" }),
+      require("./billing/routes/stripe.routes"),
     );
 
     this.app.use(express.json());
@@ -125,11 +127,11 @@ class CoreApplication {
     this.app.use(cookieParser()); // Parse cookies
 
     // Explicit OPTIONS handler for complex CORS cases
-    this.app.options('*', (req, res) => {
-      logger.debug('[CORS] Handling OPTIONS request', {
+    this.app.options("*", (req, res) => {
+      logger.debug("[CORS] Handling OPTIONS request", {
         url: req.url,
-        origin: req.get('Origin'),
-        method: req.get('Access-Control-Request-Method')
+        origin: req.get("Origin"),
+        method: req.get("Access-Control-Request-Method"),
       });
       res.status(204).end();
     });
@@ -145,14 +147,16 @@ class CoreApplication {
   createFeatureMiddleware(featureKey) {
     return async (req, res, next) => {
       // Skip feature check for health endpoints
-      if (req.path.includes('/health')) {
+      if (req.path.includes("/health")) {
         return next();
       }
 
       // Skip feature check for Cloud Tasks endpoints (they have their own auth)
-      if ((req.url && req.url.includes('/execute-followup')) ||
-        (req.originalUrl && req.originalUrl.includes('/execute-followup')) ||
-        (req.path && req.path.includes('/execute-followup'))) {
+      if (
+        (req.url && req.url.includes("/execute-followup")) ||
+        (req.originalUrl && req.originalUrl.includes("/execute-followup")) ||
+        (req.path && req.path.includes("/execute-followup"))
+      ) {
         return next();
       }
 
@@ -166,27 +170,34 @@ class CoreApplication {
       const userId = req.user?.userId || req.user?.id; // Support both userId and id fields
 
       try {
-        const isEnabled = await this.featureFlagService.isEnabled(organizationId, featureKey, userId);
+        const isEnabled = await this.featureFlagService.isEnabled(
+          organizationId,
+          featureKey,
+          userId,
+        );
 
         if (!isEnabled) {
           logger.warn(`Feature ${featureKey} not enabled`, {
             organizationId,
             userId,
-            userFields: Object.keys(req.user || {})
+            userFields: Object.keys(req.user || {}),
           });
           return res.status(403).json({
             success: false,
-            error: 'Feature not available',
-            feature: featureKey
+            error: "Feature not available",
+            feature: featureKey,
           });
         }
 
         next();
       } catch (error) {
-        logger.error(`Error checking feature flag for ${featureKey}`, { error: error.message, stack: error.stack });
+        logger.error(`Error checking feature flag for ${featureKey}`, {
+          error: error.message,
+          stack: error.stack,
+        });
         return res.status(500).json({
           success: false,
-          error: 'Error checking feature access'
+          error: "Error checking feature access",
         });
       }
     };
@@ -194,24 +205,24 @@ class CoreApplication {
 
   setupCoreRoutes() {
     // Health check endpoint for Docker/Cloud Run
-    this.app.get('/health', (req, res) => {
+    this.app.get("/health", (req, res) => {
       res.status(200).json({
-        status: 'healthy',
+        status: "healthy",
         timestamp: new Date().toISOString(),
-        version: process.env.npm_package_version || '1.0.0',
-        environment: process.env.NODE_ENV || 'development'
+        version: process.env.npm_package_version || "1.0.0",
+        environment: process.env.NODE_ENV || "development",
       });
     });
 
     // Platform routes (always available)
-    this.app.use('/api/auth', authRoutes);
-    this.app.use('/api/billing', billingRoutes);
+    this.app.use("/api/auth", authRoutes);
+    this.app.use("/api/billing", billingRoutes);
     // Mount billing routes on /api/wallet for backward compatibility
-    this.app.use('/api/wallet', billingRoutes);
+    this.app.use("/api/wallet", billingRoutes);
     // Stripe routes (checkout requires auth, webhook is already mounted above before auth)
-    const stripeRoutes = require('./billing/routes/stripe.routes');
-    this.app.use('/api/stripe', stripeRoutes);
-    this.app.use('/api/users', userRoutes);
+    const stripeRoutes = require("./billing/routes/stripe.routes");
+    this.app.use("/api/stripe", stripeRoutes);
+    this.app.use("/api/users", userRoutes);
 
     // ==========  DISABLED FEATURES (COMMENTED OUT) ==========
     // Campaigns public routes FIRST (Cloud Tasks endpoints - no JWT auth required)
@@ -233,12 +244,21 @@ class CoreApplication {
 
     // ========== Settings ==========
     // Settings is a core platform page — no feature flag gate, auth only.
-    const settingsRoutes = require('../features/settings/routes/index');
-    this.app.use('/api/settings', (req, res, next) => {
-      logger.debug(`[Settings] Incoming request: ${req.method} ${req.originalUrl}`);
-      next();
-    }, authenticateToken, settingsRoutes);
-    logger.info('[App] Settings routes mounted with authentication (no feature flag required)');
+    const settingsRoutes = require("../features/settings/routes/index");
+    this.app.use(
+      "/api/settings",
+      (req, res, next) => {
+        logger.debug(
+          `[Settings] Incoming request: ${req.method} ${req.originalUrl}`,
+        );
+        next();
+      },
+      authenticateToken,
+      settingsRoutes,
+    );
+    logger.info(
+      "[App] Settings routes mounted with authentication (no feature flag required)",
+    );
 
     // Voice Agent routes with authentication and feature flag check
     // const voiceAgentRoutes = require('../features/voice-agent/routes/index');
@@ -278,11 +298,17 @@ class CoreApplication {
     // logger.info('[App] Overview/Dashboard routes mounted with authentication');
 
     // Feature flags endpoint
-    this.app.get('/api/features', async (req, res) => {
+    this.app.get("/api/features", async (req, res) => {
       try {
-        const organizationId = req.user?.tenantId || req.user?.organizationId || req.headers['x-organization-id'];
+        const organizationId =
+          req.user?.tenantId ||
+          req.user?.organizationId ||
+          req.headers["x-organization-id"];
         const userId = req.user?.userId;
-        const features = await this.featureFlagService.getClientFeatures(organizationId, userId);
+        const features = await this.featureFlagService.getClientFeatures(
+          organizationId,
+          userId,
+        );
         res.json({ success: true, features });
       } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -296,34 +322,55 @@ class CoreApplication {
 
     // Setup dynamic feature loading
     // Apply authentication middleware first so req.user is available for feature checks
-    this.app.use('/api/:feature', authenticateToken, async (req, res, next) => {
+    this.app.use("/api/:feature", authenticateToken, async (req, res, next) => {
       const featureKey = req.params.feature;
 
       // Core platform routes are always available — skip feature flag check
-      const CORE_FEATURES = new Set(['auth', 'users', 'billing', 'health', 'settings']);
+      const CORE_FEATURES = new Set([
+        "auth",
+        "users",
+        "billing",
+        "health",
+        "settings",
+      ]);
       if (CORE_FEATURES.has(featureKey)) {
         return next();
       }
 
       try {
-        const organizationId = req.user?.tenantId || req.user?.organizationId || req.headers['x-organization-id'];
+        const organizationId =
+          req.user?.tenantId ||
+          req.user?.organizationId ||
+          req.headers["x-organization-id"];
         const userId = req.user?.userId;
 
-        logger.debug(`Feature request: ${featureKey}`, { organizationId, userId });
+        logger.debug(`Feature request: ${featureKey}`, {
+          organizationId,
+          userId,
+        });
 
-        const isEnabled = await this.featureFlagService.isEnabled(organizationId, featureKey, userId);
-        logger.debug(`Feature ${featureKey} enabled: ${isEnabled}`, { organizationId });
+        const isEnabled = await this.featureFlagService.isEnabled(
+          organizationId,
+          featureKey,
+          userId,
+        );
+        logger.debug(`Feature ${featureKey} enabled: ${isEnabled}`, {
+          organizationId,
+        });
 
         if (!isEnabled) {
           return res.status(403).json({
             success: false,
-            error: 'Feature not available',
-            feature: featureKey
+            error: "Feature not available",
+            feature: featureKey,
           });
         }
 
         // Load feature router dynamically (cached in registry after first load)
-        const featureRouter = await this.featureRegistry.loadFeatureRouter(featureKey, organizationId);
+        const featureRouter = await this.featureRegistry.loadFeatureRouter(
+          featureKey,
+          organizationId,
+        );
         if (featureRouter) {
           // Store original URL and path
           const originalUrl = req.url;
@@ -336,20 +383,20 @@ class CoreApplication {
           logger.debug(`Feature router URL manipulation`, {
             originalUrl: req.url,
             mountPath,
-            featureKey
+            featureKey,
           });
 
           if (req.url.startsWith(mountPath)) {
-            req.url = req.url.substring(mountPath.length) || '/';
+            req.url = req.url.substring(mountPath.length) || "/";
           } else if (req.url.startsWith(`/${featureKey}`)) {
             // Handle case where URL might be '/voice-agent/calls'
-            req.url = req.url.substring(`/${featureKey}`.length) || '/';
+            req.url = req.url.substring(`/${featureKey}`.length) || "/";
           }
           req.baseUrl = mountPath;
 
           logger.debug(`After URL manipulation`, {
             modifiedUrl: req.url,
-            baseUrl: req.baseUrl
+            baseUrl: req.baseUrl,
           });
 
           // Use router as middleware function
@@ -375,7 +422,11 @@ class CoreApplication {
           next();
         }
       } catch (error) {
-        logger.error('Error loading feature', { error: error.message, featureKey, stack: error.stack });
+        logger.error("Error loading feature", {
+          error: error.message,
+          featureKey,
+          stack: error.stack,
+        });
         next();
       }
     });
@@ -392,21 +443,23 @@ class CoreApplication {
       try {
         const socketService = getSocketService();
         socketService.initialize(this.server);
-        logger.info('[App] Socket.IO initialized for real-time features');
+        logger.info("[App] Socket.IO initialized for real-time features");
       } catch (error) {
-        logger.warn('[App] Socket.IO initialization failed:', {
-          error: error.message
+        logger.warn("[App] Socket.IO initialization failed:", {
+          error: error.message,
         });
       }
 
-      this.server.listen(port, '0.0.0.0', (err) => {
+      this.server.listen(port, "0.0.0.0", (err) => {
         if (err) return reject(err);
         logger.info(`Core Platform running on port ${port}`);
-        logger.info(`Registered features: ${this.featureRegistry.getFeatureList().join(', ')}`);
+        logger.info(
+          `Registered features: ${this.featureRegistry.getFeatureList().join(", ")}`,
+        );
 
         const socketService = getSocketService();
         const socketStatus = socketService.getStatus();
-        logger.info('[App] Socket.IO status:', socketStatus);
+        logger.info("[App] Socket.IO status:", socketStatus);
 
         resolve();
       });
@@ -415,8 +468,3 @@ class CoreApplication {
 }
 
 module.exports = CoreApplication;
-
-
- 
-  
-\n

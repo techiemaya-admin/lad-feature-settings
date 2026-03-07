@@ -1,12 +1,12 @@
 /**
  * Socket.IO Service
- * 
+ *
  * Manages WebSocket connections for real-time features
  * Integrated with notification listeners for call logs updates
  */
 
-const { Server } = require('socket.io');
-const logger = require('../../core/utils/logger');
+const { Server } = require("socket.io");
+const logger = require("../../core/utils/logger");
 
 class SocketService {
   constructor() {
@@ -22,30 +22,32 @@ class SocketService {
     this.server = server;
 
     // Get allowed origins from environment variable or fallback to localhost for development
-    const envOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [];
+    const envOrigins = process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(",")
+      : [];
     const allowedOrigins = [
       ...envOrigins,
-      'https://lad-frontend-develop-741719885039.us-central1.run.app',
-      'https://lad-frontend-main-741719885039.us-central1.run.app',
-      'https://lad-frontend-stage-3nddlneyya-uc.a.run.app',
-      'https://www.mrlads.com',
-      'https://app.mrlads.com',
-      'https://dev.mrlads.com',
-      'https://stage.mrlads.com'
+      "https://lad-frontend-develop-741719885039.us-central1.run.app",
+      "https://lad-frontend-main-741719885039.us-central1.run.app",
+      "https://lad-frontend-stage-3nddlneyya-uc.a.run.app",
+      "https://www.mrlads.com",
+      "https://app.mrlads.com",
+      "https://dev.mrlads.com",
+      "https://stage.mrlads.com",
     ];
 
     this.io = new Server(server, {
       cors: {
         origin: allowedOrigins,
         methods: ["GET", "POST"],
-        credentials: true
+        credentials: true,
       },
-      transports: ['websocket', 'polling']
+      transports: ["websocket", "polling"],
     });
 
     this.setupEventHandlers();
-    logger.info('[SocketService] Socket.IO server initialized', {
-      allowedOrigins: allowedOrigins.length
+    logger.info("[SocketService] Socket.IO server initialized", {
+      allowedOrigins: allowedOrigins.length,
     });
   }
 
@@ -53,35 +55,35 @@ class SocketService {
    * Setup Socket.IO event handlers
    */
   setupEventHandlers() {
-    this.io.on('connection', (socket) => {
-      logger.debug('[SocketService] Client connected', {
+    this.io.on("connection", (socket) => {
+      logger.debug("[SocketService] Client connected", {
         socketId: socket.id,
-        clientIP: socket.request.connection.remoteAddress
+        clientIP: socket.request.connection.remoteAddress,
       });
 
       // Handle client disconnection
-      socket.on('disconnect', (reason) => {
-        logger.debug('[SocketService] Client disconnected', {
+      socket.on("disconnect", (reason) => {
+        logger.debug("[SocketService] Client disconnected", {
           socketId: socket.id,
-          reason
+          reason,
         });
       });
 
       // Handle room joining (for tenant-specific updates)
-      socket.on('join', (room) => {
+      socket.on("join", (room) => {
         socket.join(room);
-        logger.debug('[SocketService] Client joined room', {
+        logger.debug("[SocketService] Client joined room", {
           socketId: socket.id,
-          room
+          room,
         });
       });
 
       // Handle room leaving
-      socket.on('leave', (room) => {
+      socket.on("leave", (room) => {
         socket.leave(room);
-        logger.debug('[SocketService] Client left room', {
+        logger.debug("[SocketService] Client left room", {
           socketId: socket.id,
-          room
+          room,
         });
       });
     });
@@ -94,33 +96,35 @@ class SocketService {
    */
   emitCallLogsUpdate(tenantId, data = {}) {
     if (!this.io) {
-      logger.warn('[SocketService] Socket.IO not initialized, skipping call logs update');
+      logger.warn(
+        "[SocketService] Socket.IO not initialized, skipping call logs update",
+      );
       return;
     }
 
     try {
       // Emit to all clients (frontend filters by tenant automatically)
-      this.io.emit('calllogs:update', {
+      this.io.emit("calllogs:update", {
         tenantId,
         timestamp: new Date().toISOString(),
-        ...data
+        ...data,
       });
 
       // Also emit to tenant-specific room if clients are using rooms
-      this.io.to(tenantId).emit('calllogs:update', {
+      this.io.to(tenantId).emit("calllogs:update", {
         tenantId,
         timestamp: new Date().toISOString(),
-        ...data
+        ...data,
       });
 
-      logger.debug('[SocketService] Emitted call logs update', {
+      logger.debug("[SocketService] Emitted call logs update", {
         tenantId,
-        connectedClients: this.io.engine.clientsCount
+        connectedClients: this.io.engine.clientsCount,
       });
     } catch (error) {
-      logger.error('[SocketService] Failed to emit call logs update', {
+      logger.error("[SocketService] Failed to emit call logs update", {
         error: error.message,
-        tenantId
+        tenantId,
       });
     }
   }
@@ -138,7 +142,7 @@ class SocketService {
   getStatus() {
     return {
       initialized: this.io !== null,
-      connectedClients: this.io ? this.io.engine.clientsCount : 0
+      connectedClients: this.io ? this.io.engine.clientsCount : 0,
     };
   }
 }
@@ -155,10 +159,5 @@ function getSocketService() {
 
 module.exports = {
   SocketService,
-  getSocketService
+  getSocketService,
 };
-
-
- 
-  
-\n

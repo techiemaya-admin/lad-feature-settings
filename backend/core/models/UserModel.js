@@ -1,9 +1,9 @@
 /**
  * User Model
- * 
+ *
  * Core entity for user management
  * Represents individual users across all tenants
- * 
+ *
  * Table: users
  * Schema: Core infrastructure table
  */
@@ -15,7 +15,7 @@ class UserModel {
 
   /**
    * Get user by ID
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<Object|null>} User or null
    */
@@ -40,7 +40,7 @@ class UserModel {
 
   /**
    * Get user by email
-   * 
+   *
    * @param {string} email - User email
    * @returns {Promise<Object|null>} User or null
    */
@@ -65,12 +65,12 @@ class UserModel {
 
   /**
    * Get user by external ID (e.g., Clerk user_id)
-   * 
+   *
    * @param {string} externalId - External user ID
    * @param {string} provider - Provider name (e.g., 'clerk', 'auth0')
    * @returns {Promise<Object|null>} User or null
    */
-  async getUserByExternalId(externalId, provider = 'clerk') {
+  async getUserByExternalId(externalId, provider = "clerk") {
     const query = `
       SELECT 
         id,
@@ -92,7 +92,7 @@ class UserModel {
 
   /**
    * Create a new user
-   * 
+   *
    * @param {Object} params - User parameters
    * @param {string} params.email - User email
    * @param {string} params.firstName - First name
@@ -107,8 +107,8 @@ class UserModel {
     firstName = null,
     lastName = null,
     externalId = null,
-    provider = 'clerk',
-    metadata = {}
+    provider = "clerk",
+    metadata = {},
   }) {
     // Add external_id and provider to metadata if provided
     if (externalId) {
@@ -143,13 +143,13 @@ class UserModel {
 
   /**
    * Update user
-   * 
+   *
    * @param {string} userId - User ID
    * @param {Object} updates - Fields to update
    * @returns {Promise<Object>} Updated user
    */
   async updateUser(userId, updates) {
-    const setClauses = ['updated_at = NOW()'];
+    const setClauses = ["updated_at = NOW()"];
     const values = [userId];
     let paramIndex = 2;
 
@@ -181,7 +181,7 @@ class UserModel {
 
     const query = `
       UPDATE users
-      SET ${setClauses.join(', ')}
+      SET ${setClauses.join(", ")}
       WHERE id = $1
       RETURNING 
         id,
@@ -199,7 +199,7 @@ class UserModel {
 
   /**
    * Deactivate user (soft delete)
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<boolean>} Success
    */
@@ -216,7 +216,7 @@ class UserModel {
 
   /**
    * Activate user
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<boolean>} Success
    */
@@ -233,7 +233,7 @@ class UserModel {
 
   /**
    * Get user's tenants (via memberships)
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<Array>} Tenants with roles
    */
@@ -259,7 +259,7 @@ class UserModel {
 
   /**
    * Get user's role in a specific tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<string|null>} Role or null
@@ -277,7 +277,7 @@ class UserModel {
 
   /**
    * Check if user has access to a tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<boolean>} Has access
@@ -296,7 +296,7 @@ class UserModel {
 
   /**
    * Check if user has specific role in tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @param {string|Array<string>} roles - Role(s) to check
@@ -304,7 +304,7 @@ class UserModel {
    */
   async hasRoleInTenant(userId, tenantId, roles) {
     const roleArray = Array.isArray(roles) ? roles : [roles];
-    
+
     const query = `
       SELECT 1
       FROM memberships
@@ -320,7 +320,7 @@ class UserModel {
 
   /**
    * Get user with their primary tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<Object|null>} User with primary tenant
    */
@@ -354,7 +354,7 @@ class UserModel {
 
   /**
    * Search users by email or name
-   * 
+   *
    * @param {string} searchTerm - Search term
    * @param {string} tenantId - Optional tenant filter
    * @param {number} limit - Max results
@@ -418,7 +418,7 @@ class UserModel {
 
   /**
    * Get user statistics
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<Object>} Statistics
    */
@@ -438,9 +438,3 @@ class UserModel {
 }
 
 module.exports = UserModel;
-
-
-
- 
-  
-\n

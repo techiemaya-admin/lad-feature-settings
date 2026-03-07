@@ -1,9 +1,9 @@
 /**
  * Tenant Model
- * 
+ *
  * Core entity for multi-tenancy
  * Represents organizations/companies using the platform
- * 
+ *
  * Table: tenants
  * Schema: Core infrastructure table
  */
@@ -15,7 +15,7 @@ class TenantModel {
 
   /**
    * Get tenant by ID
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Object|null>} Tenant or null
    */
@@ -39,7 +39,7 @@ class TenantModel {
 
   /**
    * Get tenant by name
-   * 
+   *
    * @param {string} name - Tenant name
    * @returns {Promise<Object|null>} Tenant or null
    */
@@ -63,7 +63,7 @@ class TenantModel {
 
   /**
    * Get all active tenants
-   * 
+   *
    * @param {Object} options - Query options
    * @param {number} options.limit - Max results
    * @param {number} options.offset - Offset for pagination
@@ -92,7 +92,7 @@ class TenantModel {
 
   /**
    * Create a new tenant
-   * 
+   *
    * @param {Object} params - Tenant parameters
    * @param {string} params.name - Tenant name
    * @param {string} params.planId - Plan ID (optional)
@@ -125,13 +125,13 @@ class TenantModel {
 
   /**
    * Update tenant
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @param {Object} updates - Fields to update
    * @returns {Promise<Object>} Updated tenant
    */
   async updateTenant(tenantId, updates) {
-    const setClauses = ['updated_at = NOW()'];
+    const setClauses = ["updated_at = NOW()"];
     const values = [tenantId];
     let paramIndex = 2;
 
@@ -158,7 +158,7 @@ class TenantModel {
 
     const query = `
       UPDATE tenants
-      SET ${setClauses.join(', ')}
+      SET ${setClauses.join(", ")}
       WHERE id = $1
       RETURNING 
         id,
@@ -175,7 +175,7 @@ class TenantModel {
 
   /**
    * Deactivate tenant (soft delete)
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<boolean>} Success
    */
@@ -192,7 +192,7 @@ class TenantModel {
 
   /**
    * Activate tenant
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<boolean>} Success
    */
@@ -209,7 +209,7 @@ class TenantModel {
 
   /**
    * Get tenant users (via memberships)
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Array>} Users with roles
    */
@@ -234,7 +234,7 @@ class TenantModel {
 
   /**
    * Get tenant features (combined plan + overrides)
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Array>} Enabled features
    */
@@ -265,7 +265,7 @@ class TenantModel {
 
   /**
    * Check if a feature is enabled for tenant
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @param {string} featureKey - Feature key
    * @returns {Promise<Object|null>} Feature value or null
@@ -293,7 +293,7 @@ class TenantModel {
 
   /**
    * Get tenant statistics
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Object>} Statistics
    */
@@ -313,7 +313,7 @@ class TenantModel {
 
   /**
    * Get tenant with plan details
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Object|null>} Tenant with plan
    */
@@ -341,7 +341,7 @@ class TenantModel {
 
   /**
    * Search tenants by name
-   * 
+   *
    * @param {string} searchTerm - Search term
    * @param {number} limit - Max results
    * @returns {Promise<Array>} Matching tenants
@@ -362,15 +362,13 @@ class TenantModel {
       LIMIT $3
     `;
 
-    const result = await this.pool.query(query, [`%${searchTerm}%`, searchTerm, limit]);
+    const result = await this.pool.query(query, [
+      `%${searchTerm}%`,
+      searchTerm,
+      limit,
+    ]);
     return result.rows;
   }
 }
 
 module.exports = TenantModel;
-
-
-
- 
-  
-\n

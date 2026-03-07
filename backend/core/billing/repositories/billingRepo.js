@@ -1,4 +1,4 @@
-const { query } = require('../../../config/database');
+const { query } = require("../../../config/database");
 
 /**
  * Billing Repository - Centralized database queries for billing operations
@@ -13,7 +13,7 @@ const { query } = require('../../../config/database');
  * Resolve price for a specific usage component
  * Priority: tenant-specific override > global default
  * Falls back to model='*' wildcard if exact model not found
- * 
+ *
  * @param {Object} params
  * @param {string} params.tenantId - Tenant UUID
  * @param {string} params.category - Usage category (stt, llm, tts, telephony, etc.)
@@ -23,7 +23,14 @@ const { query } = require('../../../config/database');
  * @param {Date} params.atTime - Effective time (defaults to now)
  * @returns {Promise<Object|null>} Price record or null
  */
-async function resolvePrice({ tenantId, category, provider, model, unit, atTime = new Date() }) {
+async function resolvePrice({
+  tenantId,
+  category,
+  provider,
+  model,
+  unit,
+  atTime = new Date(),
+}) {
   const sql = `
     SELECT id, tenant_id, category, provider, model, unit, unit_price, description, metadata
     FROM billing_pricing_catalog
@@ -52,8 +59,15 @@ async function resolvePrice({ tenantId, category, provider, model, unit, atTime 
       effective_from DESC NULLS LAST
     LIMIT 1
   `;
-  
-  const result = await query(sql, [category, provider, unit, atTime, tenantId, model]);
+
+  const result = await query(sql, [
+    category,
+    provider,
+    unit,
+    atTime,
+    tenantId,
+    model,
+  ]);
   return result.rows[0] || null;
 }
 
@@ -68,22 +82,22 @@ async function listPricing({ tenantId, category, provider }) {
     WHERE (tenant_id = $1 OR tenant_id IS NULL)
       AND is_active = true
   `;
-  
+
   const params = [tenantId];
   let paramIndex = 2;
-  
+
   if (category) {
     sql += ` AND category = $${paramIndex++}`;
     params.push(category);
   }
-  
+
   if (provider) {
     sql += ` AND provider = $${paramIndex++}`;
     params.push(provider);
   }
-  
+
   sql += ` ORDER BY category, provider, model`;
-  
+
   const result = await query(sql, params);
   return result.rows;
 }
@@ -99,8 +113,8 @@ async function listPricing({ tenantId, category, provider }) {
  * @returns {Promise<Object>} Wallet record
  */
 async function getOrCreateWallet(tenantId, forUpdate = false) {
-  const lockClause = forUpdate ? 'FOR UPDATE' : '';
-  
+  const lockClause = forUpdate ? "FOR UPDATE" : "";
+
   // Try to get existing wallet - first check for tenant-level wallet (user_id IS NULL)
   // then fallback to any wallet for this tenant
   let sql = `
@@ -112,13 +126,13 @@ async function getOrCreateWallet(tenantId, forUpdate = false) {
     LIMIT 1
     ${lockClause}
   `;
-  
+
   let result = await query(sql, [tenantId]);
-  
+
   if (result.rows.length > 0) {
     return result.rows[0];
   }
-  
+
   // Create if doesn't exist (only if not locked)
   if (!forUpdate) {
     // Use a separate check-then-insert approach since ON CONFLICT doesn't work
@@ -132,12 +146,12 @@ async function getOrCreateWallet(tenantId, forUpdate = false) {
       RETURNING *
     `;
     result = await query(sql, [tenantId]);
-    
+
     // If insert succeeded, return the new row
     if (result.rows.length > 0) {
       return result.rows[0];
     }
-    
+
     // If insert didn't happen (wallet exists), fetch it
     sql = `
       SELECT id, tenant_id, user_id, current_balance, reserved_balance, currency, 
@@ -150,7 +164,7 @@ async function getOrCreateWallet(tenantId, forUpdate = false) {
       return result.rows[0];
     }
   }
-  
+
   throw new Error(`Wallet not found for tenant ${tenantId}`);
 }
 
@@ -164,8 +178,10 @@ async function updateWalletBalance(walletId, newBalance, client) {
     WHERE id = $2
     RETURNING *
   `;
-  
-  const result = client ? await client.query(sql, [newBalance, walletId]) : await query(sql, [newBalance, walletId]);
+
+  const result = client
+    ? await client.query(sql, [newBalance, walletId])
+    : await query(sql, [newBalance, walletId]);
   return result.rows[0];
 }
 
@@ -178,9 +194,10 @@ async function checkSufficientBalance(tenantId, requiredAmount) {
     FROM billing_wallets
     WHERE tenant_id = $2 AND user_id IS NULL
   `;
-  
+
   const result = await query(sql, [requiredAmount, tenantId]);
-  if (result.rows.length === 0) return { sufficient: false, current_balance: 0 };
+  if (result.rows.length === 0)
+    return { sufficient: false, current_balance: 0 };
   return result.rows[0];
 }
 
@@ -205,7 +222,7 @@ async function createLedgerTransaction({
   createdBy,
   description,
   metadata,
-  client
+  client,
 }) {
   const sql = `
     INSERT INTO billing_ledger_transactions (
@@ -215,13 +232,22 @@ async function createLedgerTransaction({
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *
   `;
-  
+
   const result = await client.query(sql, [
-    tenantId, walletId, transactionType, amount, balanceBefore, balanceAfter,
-    referenceType, referenceId, idempotencyKey, createdBy, description,
-    metadata || {}
+    tenantId,
+    walletId,
+    transactionType,
+    amount,
+    balanceBefore,
+    balanceAfter,
+    referenceType,
+    referenceId,
+    idempotencyKey,
+    createdBy,
+    description,
+    metadata || {},
   ]);
-  
+
   return result.rows[0];
 }
 
@@ -233,7 +259,7 @@ async function getLedgerByIdempotencyKey(tenantId, idempotencyKey) {
     SELECT * FROM billing_ledger_transactions
     WHERE tenant_id = $1 AND idempotency_key = $2
   `;
-  
+
   const result = await query(sql, [tenantId, idempotencyKey]);
   return result.rows[0] || null;
 }
@@ -241,7 +267,14 @@ async function getLedgerByIdempotencyKey(tenantId, idempotencyKey) {
 /**
  * List ledger transactions with pagination
  */
-async function listLedgerTransactions({ tenantId, walletId, fromDate, toDate, limit = 100, offset = 0 }) {
+async function listLedgerTransactions({
+  tenantId,
+  walletId,
+  fromDate,
+  toDate,
+  limit = 100,
+  offset = 0,
+}) {
   let sql = `
     SELECT lt.*, w.tenant_id as wallet_tenant_id, u.email as created_by_email
     FROM billing_ledger_transactions lt
@@ -249,28 +282,28 @@ async function listLedgerTransactions({ tenantId, walletId, fromDate, toDate, li
     LEFT JOIN users u ON lt.created_by = u.id
     WHERE lt.tenant_id = $1
   `;
-  
+
   const params = [tenantId];
   let paramIndex = 2;
-  
+
   if (walletId) {
     sql += ` AND lt.wallet_id = $${paramIndex++}`;
     params.push(walletId);
   }
-  
+
   if (fromDate) {
     sql += ` AND lt.created_at >= $${paramIndex++}`;
     params.push(fromDate);
   }
-  
+
   if (toDate) {
     sql += ` AND lt.created_at < $${paramIndex++}`;
     params.push(toDate);
   }
-  
+
   sql += ` ORDER BY lt.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(limit, offset);
-  
+
   const result = await query(sql, params);
   return result.rows;
 }
@@ -292,7 +325,7 @@ async function createUsageEvent({
   currency,
   idempotencyKey,
   externalReferenceId,
-  metadata
+  metadata,
 }) {
   const sql = `
     INSERT INTO billing_usage_events (
@@ -302,12 +335,20 @@ async function createUsageEvent({
     VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10)
     RETURNING *
   `;
-  
+
   const result = await query(sql, [
-    tenantId, userId, featureKey, JSON.stringify(usageItems), totalQuantity,
-    totalCost, currency, idempotencyKey, externalReferenceId, metadata || {}
+    tenantId,
+    userId,
+    featureKey,
+    JSON.stringify(usageItems),
+    totalQuantity,
+    totalCost,
+    currency,
+    idempotencyKey,
+    externalReferenceId,
+    metadata || {},
   ]);
-  
+
   return result.rows[0];
 }
 
@@ -319,7 +360,7 @@ async function getUsageByIdempotencyKey(tenantId, idempotencyKey) {
     SELECT * FROM billing_usage_events
     WHERE tenant_id = $1 AND idempotency_key = $2
   `;
-  
+
   const result = await query(sql, [tenantId, idempotencyKey]);
   return result.rows[0] || null;
 }
@@ -332,7 +373,7 @@ async function getUsageEventById(id, tenantId) {
     SELECT * FROM billing_usage_events
     WHERE id = $1 AND tenant_id = $2
   `;
-  
+
   const result = await query(sql, [id, tenantId]);
   return result.rows[0] || null;
 }
@@ -345,7 +386,7 @@ async function updateUsageEventStatus({
   status,
   ledgerTransactionId,
   errorMessage,
-  client
+  client,
 }) {
   const sql = `
     UPDATE billing_usage_events
@@ -358,8 +399,10 @@ async function updateUsageEventStatus({
     WHERE id = $4
     RETURNING *
   `;
-  
-  const result = client ? await client.query(sql, [status, ledgerTransactionId, errorMessage, id]) : await query(sql, [status, ledgerTransactionId, errorMessage, id]);
+
+  const result = client
+    ? await client.query(sql, [status, ledgerTransactionId, errorMessage, id])
+    : await query(sql, [status, ledgerTransactionId, errorMessage, id]);
   return result.rows[0];
 }
 
@@ -374,7 +417,7 @@ async function listUsageEvents({
   fromDate,
   toDate,
   limit = 100,
-  offset = 0
+  offset = 0,
 }) {
   let sql = `
     SELECT ue.*, u.email as user_email
@@ -382,38 +425,38 @@ async function listUsageEvents({
     LEFT JOIN users u ON ue.user_id = u.id
     WHERE ue.tenant_id = $1
   `;
-  
+
   const params = [tenantId];
   let paramIndex = 2;
-  
+
   if (userId) {
     sql += ` AND ue.user_id = $${paramIndex++}`;
     params.push(userId);
   }
-  
+
   if (featureKey) {
     sql += ` AND ue.feature_key = $${paramIndex++}`;
     params.push(featureKey);
   }
-  
+
   if (status) {
     sql += ` AND ue.status = $${paramIndex++}`;
     params.push(status);
   }
-  
+
   if (fromDate) {
     sql += ` AND ue.created_at >= $${paramIndex++}`;
     params.push(fromDate);
   }
-  
+
   if (toDate) {
     sql += ` AND ue.created_at < $${paramIndex++}`;
     params.push(toDate);
   }
-  
+
   sql += ` ORDER BY ue.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(limit, offset);
-  
+
   const result = await query(sql, params);
   return result.rows;
 }
@@ -433,27 +476,27 @@ async function getUsageAggregation({ tenantId, featureKey, fromDate, toDate }) {
     FROM billing_usage_events
     WHERE tenant_id = $1
   `;
-  
+
   const params = [tenantId];
   let paramIndex = 2;
-  
+
   if (featureKey) {
     sql += ` AND feature_key = $${paramIndex++}`;
     params.push(featureKey);
   }
-  
+
   if (fromDate) {
     sql += ` AND created_at >= $${paramIndex++}`;
     params.push(fromDate);
   }
-  
+
   if (toDate) {
     sql += ` AND created_at < $${paramIndex++}`;
     params.push(toDate);
   }
-  
+
   sql += ` GROUP BY feature_key, status, currency ORDER BY feature_key, status`;
-  
+
   const result = await query(sql, params);
   return result.rows;
 }
@@ -470,7 +513,7 @@ async function getFeatureEntitlement(tenantId, featureKey) {
     SELECT * FROM billing_feature_entitlements
     WHERE tenant_id = $1 AND feature_key = $2
   `;
-  
+
   const result = await query(sql, [tenantId, featureKey]);
   return result.rows[0] || null;
 }
@@ -484,7 +527,7 @@ async function listFeatureEntitlements(tenantId) {
     WHERE tenant_id = $1
     ORDER BY feature_key
   `;
-  
+
   const result = await query(sql, [tenantId]);
   return result.rows;
 }
@@ -497,7 +540,8 @@ async function listFeatureEntitlements(tenantId) {
  * Get legacy credit balance (user_credits)
  */
 async function getLegacyCreditBalance(tenantId) {
-  const schema = process.env.DB_SCHEMA || process.env.POSTGRES_SCHEMA || 'lad_dev';
+  const schema =
+    process.env.DB_SCHEMA || process.env.POSTGRES_SCHEMA || "lad_dev";
   const sql = `
     SELECT COALESCE(uc.balance, 0) as balance
     FROM ${schema}.user_credits uc
@@ -516,9 +560,10 @@ async function listLegacyCreditTransactions({
   fromDate,
   toDate,
   limit = 1000,
-  offset = 0
+  offset = 0,
 }) {
-  const schema = process.env.DB_SCHEMA || process.env.POSTGRES_SCHEMA || 'lad_dev';
+  const schema =
+    process.env.DB_SCHEMA || process.env.POSTGRES_SCHEMA || "lad_dev";
   let sql = `
     SELECT *
     FROM ${schema}.credit_transactions
@@ -548,17 +593,17 @@ module.exports = {
   // Pricing
   resolvePrice,
   listPricing,
-  
+
   // Wallets
   getOrCreateWallet,
   updateWalletBalance,
   checkSufficientBalance,
-  
+
   // Ledger
   createLedgerTransaction,
   getLedgerByIdempotencyKey,
   listLedgerTransactions,
-  
+
   // Usage Events
   createUsageEvent,
   getUsageByIdempotencyKey,
@@ -566,18 +611,12 @@ module.exports = {
   updateUsageEventStatus,
   listUsageEvents,
   getUsageAggregation,
-  
+
   // Entitlements
   getFeatureEntitlement,
   listFeatureEntitlements,
 
   // Legacy credits
   getLegacyCreditBalance,
-  listLegacyCreditTransactions
+  listLegacyCreditTransactions,
 };
-
-
-
- 
-  
-\n

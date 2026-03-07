@@ -59,12 +59,14 @@ Authorization: Bearer <jwt_token>
 ### 1. Get Pricing Catalog
 
 **Resolve specific price:**
+
 ```bash
 curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/billing/pricing?category=stt&provider=openai&model=whisper-1&unit=second" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -82,6 +84,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 ```
 
 **List all pricing:**
+
 ```bash
 curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/billing/pricing" \
   -H "Authorization: Bearer $TOKEN"
@@ -121,6 +124,7 @@ curl -X POST "https://lad-backend-develop-741719885039.us-central1.run.app/api/b
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -171,15 +175,16 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
   "wallet": {
     "walletId": "uuid",
     "tenantId": "uuid",
-    "currentBalance": 50.00,
+    "currentBalance": 50.0,
     "reservedBalance": 0,
-    "availableBalance": 50.00,
+    "availableBalance": 50.0,
     "currency": "USD",
     "status": "active",
     "lowBalanceThreshold": null
@@ -205,20 +210,21 @@ curl -X POST "https://lad-backend-develop-741719885039.us-central1.run.app/api/b
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
   "transaction": {
     "id": "uuid",
     "transaction_type": "topup",
-    "amount": 100.00,
-    "balance_before": 50.00,
-    "balance_after": 150.00,
+    "amount": 100.0,
+    "balance_before": 50.0,
+    "balance_after": 150.0,
     "created_at": "2025-12-27T10:00:00Z"
   },
   "wallet": {
-    "currentBalance": 150.00,
-    "availableBalance": 150.00
+    "currentBalance": 150.0,
+    "availableBalance": 150.0
   }
 }
 ```
@@ -274,6 +280,7 @@ curl -X POST "https://lad-backend-develop-741719885039.us-central1.run.app/api/b
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -294,13 +301,14 @@ curl -X POST "https://lad-backend-develop-741719885039.us-central1.run.app/api/b
     "id": "uuid",
     "transaction_type": "debit",
     "amount": -0.0235,
-    "balance_before": 150.00,
+    "balance_before": 150.0,
     "balance_after": 149.9765
   }
 }
 ```
 
 **Insufficient Balance Response (402):**
+
 ```json
 {
   "success": false,
@@ -316,6 +324,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 ```
 
 **Query Parameters:**
+
 - `featureKey` - Filter by feature (optional)
 - `status` - Filter by status: pending, charged, voided, failed (optional)
 - `fromDate` - Start date (ISO 8601) (optional)
@@ -325,6 +334,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 - `aggregate` - Return summary instead of details (true/false)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -348,6 +358,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 ```
 
 **Aggregated Summary:**
+
 ```bash
 curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/billing/usage?aggregate=true" \
   -H "Authorization: Bearer $TOKEN"
@@ -361,7 +372,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
       "feature_key": "voice-agent",
       "status": "charged",
       "event_count": 15,
-      "total_quantity": 5432.50,
+      "total_quantity": 5432.5,
       "total_cost": 1.245,
       "currency": "USD"
     }
@@ -378,6 +389,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -386,7 +398,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
       "id": "uuid",
       "transaction_type": "debit",
       "amount": -0.0235,
-      "balance_before": 150.00,
+      "balance_before": 150.0,
       "balance_after": 149.9765,
       "reference_type": "usage_event",
       "reference_id": "uuid",
@@ -397,9 +409,9 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
     {
       "id": "uuid",
       "transaction_type": "topup",
-      "amount": 100.00,
-      "balance_before": 50.00,
-      "balance_after": 150.00,
+      "amount": 100.0,
+      "balance_before": 50.0,
+      "balance_after": 150.0,
       "reference_type": "manual",
       "description": "Credit purchase via Stripe",
       "created_at": "2025-12-27T10:00:00Z"
@@ -416,7 +428,7 @@ curl -X GET "https://lad-backend-develop-741719885039.us-central1.run.app/api/bi
 Features should **emit usage events** to the billing system, not implement billing logic themselves.
 
 ```javascript
-const { recordVoiceCallUsage } = require('./billing/voiceAgentBilling');
+const { recordVoiceCallUsage } = require("./billing/voiceAgentBilling");
 
 // After completing a voice call
 async function handleCallCompleted(callData) {
@@ -428,30 +440,29 @@ async function handleCallCompleted(callData) {
       callId: callData.callId, // Used for idempotency
       usage: {
         sttSeconds: 45,
-        sttProvider: 'openai',
-        sttModel: 'whisper-1',
+        sttProvider: "openai",
+        sttModel: "whisper-1",
         llmPromptTokens: 200,
         llmCompletionTokens: 150,
-        llmProvider: 'openai',
-        llmModel: 'gpt-4',
+        llmProvider: "openai",
+        llmModel: "gpt-4",
         ttsCharacters: 150,
-        ttsProvider: 'openai',
-        ttsModel: 'tts-1',
+        ttsProvider: "openai",
+        ttsModel: "tts-1",
         telephonyMinutes: 0.75,
-        telephonyProvider: 'twilio',
+        telephonyProvider: "twilio",
         vmSeconds: 45,
-        vmProvider: 'runpod'
+        vmProvider: "runpod",
       },
       metadata: {
         phoneNumber: callData.phoneNumber,
-        duration: callData.duration
-      }
+        duration: callData.duration,
+      },
     });
-    
+
     console.log(`Call charged: $${result.usageEvent.total_cost}`);
-    
   } catch (error) {
-    if (error.message.includes('Insufficient balance')) {
+    if (error.message.includes("Insufficient balance")) {
       // Handle low balance
       await notifyLowBalance(callData.tenantId);
     }
@@ -463,21 +474,21 @@ async function handleCallCompleted(callData) {
 ### Pre-Call Balance Check
 
 ```javascript
-const { canAffordCall } = require('./billing/voiceAgentBilling');
+const { canAffordCall } = require("./billing/voiceAgentBilling");
 
 async function checkBeforeCall(tenantId, estimatedDuration) {
   const check = await canAffordCall({
     tenantId,
-    estimatedDuration: 60 // seconds
+    estimatedDuration: 60, // seconds
   });
-  
+
   if (!check.canAfford) {
     return {
       allowed: false,
-      message: `Insufficient balance. Estimated cost: $${check.estimatedCost}, Available: $${check.availableBalance}`
+      message: `Insufficient balance. Estimated cost: $${check.estimatedCost}, Available: $${check.availableBalance}`,
     };
   }
-  
+
   return { allowed: true };
 }
 ```
@@ -499,6 +510,7 @@ VALUES ('user-uuid', 'billing.admin');
 ```
 
 Or use the existing script pattern:
+
 ```bash
 node scripts/add-capabilities.js <user-id> billing.admin billing.view
 ```
@@ -537,6 +549,7 @@ node scripts/test-billing-system.js
 ```
 
 Tests cover:
+
 1. Price resolution
 2. Quote generation
 3. Wallet operations (top-up, debit)
@@ -550,6 +563,7 @@ Tests cover:
 ### Manual Testing
 
 1. **Create test wallet:**
+
 ```bash
 curl -X POST "http://localhost:3004/api/billing/topup" \
   -H "Authorization: Bearer $TOKEN" \
@@ -558,6 +572,7 @@ curl -X POST "http://localhost:3004/api/billing/topup" \
 ```
 
 2. **Make test charge:**
+
 ```bash
 curl -X POST "http://localhost:3004/api/billing/charge" \
   -H "Authorization: Bearer $TOKEN" \
@@ -570,6 +585,7 @@ curl -X POST "http://localhost:3004/api/billing/charge" \
 ```
 
 3. **Check balance:**
+
 ```bash
 curl -X GET "http://localhost:3004/api/billing/wallet" \
   -H "Authorization: Bearer $TOKEN"
@@ -607,6 +623,7 @@ Currently only USD is supported. To add currencies:
 ### Migration Fails
 
 Check database connection:
+
 ```bash
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT version();"
 ```
@@ -614,6 +631,7 @@ psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT version();"
 ### Pricing Not Found
 
 Verify pricing catalog has entries:
+
 ```sql
 SELECT * FROM billing_pricing_catalog WHERE tenant_id IS NULL LIMIT 10;
 ```
@@ -623,8 +641,9 @@ If empty, re-run migration to seed default prices.
 ### Balance Mismatch
 
 Audit ledger vs wallet:
+
 ```sql
-SELECT 
+SELECT
   w.current_balance as wallet_balance,
   (SELECT SUM(amount) FROM billing_ledger_transactions WHERE wallet_id = w.id) as ledger_sum
 FROM billing_wallets w
@@ -636,11 +655,12 @@ Should match. If not, wallet balance cache is stale (rebuild from ledger).
 ### Duplicate Charges
 
 Check idempotency key uniqueness:
+
 ```sql
-SELECT idempotency_key, COUNT(*) 
-FROM billing_ledger_transactions 
+SELECT idempotency_key, COUNT(*)
+FROM billing_ledger_transactions
 WHERE tenant_id = 'your-tenant-id'
-GROUP BY idempotency_key 
+GROUP BY idempotency_key
 HAVING COUNT(*) > 1;
 ```
 
@@ -649,13 +669,8 @@ Should return no rows. If duplicates exist, idempotency is broken.
 ## Support
 
 For issues or questions:
+
 - Check logs: `docker logs lad-backend` or Cloud Run logs
 - Review test output: `node scripts/test-billing-system.js`
 - Verify pricing: `SELECT * FROM billing_pricing_catalog`
 - Check wallet: `SELECT * FROM billing_wallets WHERE tenant_id = 'xxx'`
-
-
-
- 
-  
-\n

@@ -9,7 +9,7 @@ jobs:
   validate:
     name: Validate PR
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,8 +19,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          
+          node-version: "20"
+
       - name: Install backend dependencies
         run: |
           if [ -f backend/package.json ]; then
@@ -40,13 +40,13 @@ jobs:
       - name: Validate backend structure
         run: |
           echo "Validating backend structure..."
-          
+
           # Check for key backend files (LAD architecture)
           files=(
             "backend/features/settings/routes/index.js"
             "backend/features/settings/manifest.js"
           )
-          
+
           for file in "${files[@]}"; do
             if [ -f "$file" ]; then
               echo "✅ $file exists"
@@ -55,7 +55,7 @@ jobs:
               exit 1
             fi
           done
-          
+
           # Check optional files
           optional_files=(
             "backend/services/"
@@ -63,7 +63,7 @@ jobs:
             "backend/middleware/"
             "backend/models/"
           )
-          
+
           for file in "${optional_files[@]}"; do
             if [ -e "$file" ]; then
               echo "✅ $file exists"
@@ -75,7 +75,7 @@ jobs:
       - name: Validate frontend structure
         run: |
           echo "Validating frontend structure..."
-          
+
           if [ -d "frontend/sdk" ]; then
             echo "✅ Frontend SDK directory exists"
             test -f frontend/sdk/index.ts && echo "✅ SDK index.ts exists" || echo "⚠️  No index.ts"
@@ -117,25 +117,25 @@ jobs:
       - name: Check for secrets
         run: |
           echo "Checking for accidentally committed secrets..."
-          
+
           # Check for common secret patterns (exclude node_modules)
           if grep -r -i "api[_-]key.*=.*['\"][a-zA-Z0-9]{20,}['\"]" backend/ frontend/ --exclude-dir=node_modules 2>/dev/null; then
             echo "❌ Possible API keys found in code"
             exit 1
           fi
-          
+
           # Check for hardcoded passwords (exclude node_modules and comments)
           if grep -r -i "password.*=.*['\"][^'\"]*['\"]" backend/ frontend/ --exclude-dir=node_modules 2>/dev/null | grep -v "password.*process.env\|^[[:space:]]*\(\/\/\|\/\*\)"; then
             echo "❌ Possible hardcoded passwords found"
             exit 1
           fi
-          
+
           echo "✅ No obvious secrets detected"
 
       - name: Lint commit messages
         run: |
           echo "Validating commit messages..."
-          
+
           # Get commits in PR
           git log --format=%s origin/main..HEAD | while read commit_msg; do
             echo "Checking: $commit_msg"
@@ -172,7 +172,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -190,7 +190,7 @@ jobs:
             });
 
             const labels = new Set();
-            
+
             for (const file of files) {
               if (file.filename.startsWith('backend/')) {
                 labels.add('backend');
@@ -229,7 +229,7 @@ jobs:
   security-check:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -237,7 +237,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
 
       - name: Install dependencies
         run: npm ci || echo "No package.json found"
@@ -269,9 +269,3 @@ jobs:
           else
             echo "No package.json found, skipping vulnerability check"
           fi
-
-          
-
- 
-  
-\n

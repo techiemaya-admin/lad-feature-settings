@@ -1,6 +1,6 @@
-const { pool } = require('../../../shared/database/connection');
-const billingRepo = require('../repositories/billingRepo');
-const { v4: uuidv4 } = require('uuid');
+const { pool } = require("../../../shared/database/connection");
+const billingRepo = require("../repositories/billingRepo");
+const { v4: uuidv4 } = require("uuid");
 
 /**
  * Core Billing Service
@@ -12,7 +12,7 @@ class BillingService {
   /**
    * Resolve price for a specific usage component
    * Supports tenant overrides and wildcard fallbacks
-   * 
+   *
    * @param {Object} params
    * @returns {Promise<Object>} { unitPrice, priceId, description, ... }
    */
@@ -23,15 +23,15 @@ class BillingService {
       provider,
       model,
       unit,
-      atTime: atTime || new Date()
+      atTime: atTime || new Date(),
     });
-    
+
     if (!price) {
       throw new Error(
-        `No pricing found for ${category}/${provider}/${model}/${unit} for tenant ${tenantId}`
+        `No pricing found for ${category}/${provider}/${model}/${unit} for tenant ${tenantId}`,
       );
     }
-    
+
     return {
       priceId: price.id,
       unitPrice: parseFloat(price.unit_price),
@@ -41,13 +41,13 @@ class BillingService {
       unit: price.unit,
       description: price.description,
       metadata: price.metadata,
-      isTenantOverride: price.tenant_id !== null
+      isTenantOverride: price.tenant_id !== null,
     };
   }
 
   /**
    * Quote cost for usage items without charging
-   * 
+   *
    * @param {Object} params
    * @param {string} params.tenantId
    * @param {Array} params.items - [{category, provider, model, unit, quantity}]
@@ -56,7 +56,7 @@ class BillingService {
   async quote({ tenantId, items }) {
     const quotedItems = [];
     let totalCost = 0;
-    
+
     for (const item of items) {
       const price = await this.resolvePrice({
         tenantId,
@@ -64,35 +64,35 @@ class BillingService {
         provider: item.provider,
         model: item.model,
         unit: item.unit,
-        atTime: item.atTime
+        atTime: item.atTime,
       });
-      
+
       const quantity = parseFloat(item.quantity);
       const cost = quantity * price.unitPrice;
-      
+
       quotedItems.push({
         ...item,
         quantity,
         unitPrice: price.unitPrice,
         cost: parseFloat(cost.toFixed(6)),
         priceId: price.priceId,
-        description: item.description || price.description
+        description: item.description || price.description,
       });
-      
+
       totalCost += cost;
     }
-    
+
     return {
       items: quotedItems,
       totalCost: parseFloat(totalCost.toFixed(6)),
-      currency: 'USD'
+      currency: "USD",
     };
   }
 
   /**
    * Create usage event (idempotent)
    * Does not charge immediately - use chargeUsageEvent() after creation
-   * 
+   *
    * @param {Object} params
    * @returns {Promise<Object>} Usage event record
    */
@@ -103,21 +103,27 @@ class BillingService {
     items,
     idempotencyKey,
     externalReferenceId = null,
-    metadata = {}
+    metadata = {},
   }) {
     // Check if already exists (idempotency)
-    const existing = await billingRepo.getUsageByIdempotencyKey(tenantId, idempotencyKey);
+    const existing = await billingRepo.getUsageByIdempotencyKey(
+      tenantId,
+      idempotencyKey,
+    );
     if (existing) {
       console.log(`[Billing] Usage event already exists: ${idempotencyKey}`);
       return existing;
     }
-    
+
     // Quote to get costs
     const quote = await this.quote({ tenantId, items });
-    
+
     // Calculate totals
-    const totalQuantity = items.reduce((sum, item) => sum + parseFloat(item.quantity), 0);
-    
+    const totalQuantity = items.reduce(
+      (sum, item) => sum + parseFloat(item.quantity),
+      0,
+    );
+
     // Create usage event
     const usageEvent = await billingRepo.createUsageEvent({
       tenantId,
@@ -129,18 +135,20 @@ class BillingService {
       currency: quote.currency,
       idempotencyKey,
       externalReferenceId,
-      metadata
+      metadata,
     });
-    
-    console.log(`[Billing] Created usage event ${usageEvent.id}: ${featureKey} - $${quote.totalCost}`);
-    
+
+    console.log(
+      `[Billing] Created usage event ${usageEvent.id}: ${featureKey} - $${quote.totalCost}`,
+    );
+
     return usageEvent;
   }
 
   /**
    * Charge a usage event (debit wallet atomically)
    * Idempotent - if already charged, returns existing ledger transaction
-   * 
+   *
    * @param {Object} params
    * @param {string} params.usageEventId - Usage event UUID
    * @param {string} params.tenantId - Tenant UUID
@@ -148,73 +156,83 @@ class BillingService {
    */
   async chargeUsageEvent({ usageEventId, tenantId }) {
     const client = await pool.connect();
-    
+
     try {
-      await client.query('BEGIN');
-      
+      await client.query("BEGIN");
+
       // Get usage event
-      const usageEvent = await billingRepo.getUsageEventById(usageEventId, tenantId);
+      const usageEvent = await billingRepo.getUsageEventById(
+        usageEventId,
+        tenantId,
+      );
       if (!usageEvent) {
         throw new Error(`Usage event not found: ${usageEventId}`);
       }
-      
+
       // Check if already charged (idempotency)
-      if (usageEvent.status === 'charged') {
-        await client.query('COMMIT');
+      if (usageEvent.status === "charged") {
+        await client.query("COMMIT");
         console.log(`[Billing] Usage event already charged: ${usageEventId}`);
-        return { alreadyCharged: true, ledgerTransactionId: usageEvent.ledger_transaction_id };
+        return {
+          alreadyCharged: true,
+          ledgerTransactionId: usageEvent.ledger_transaction_id,
+        };
       }
-      
-      if (usageEvent.status === 'voided') {
+
+      if (usageEvent.status === "voided") {
         throw new Error(`Cannot charge voided usage event: ${usageEventId}`);
       }
-      
+
       // Debit wallet atomically
       const ledgerTx = await this.debitWalletAtomic({
         tenantId,
         amount: usageEvent.total_cost,
-        referenceType: 'usage_event',
+        referenceType: "usage_event",
         referenceId: usageEventId,
         idempotencyKey: `charge_usage_${usageEventId}`,
         description: `Charge for ${usageEvent.feature_key}`,
         metadata: {
           featureKey: usageEvent.feature_key,
-          externalRef: usageEvent.external_reference_id
+          externalRef: usageEvent.external_reference_id,
         },
-        client
+        client,
       });
-      
+
       // Mark usage event as charged
       await billingRepo.updateUsageEventStatus({
         id: usageEventId,
-        status: 'charged',
+        status: "charged",
         ledgerTransactionId: ledgerTx.id,
         errorMessage: null,
-        client
+        client,
       });
-      
-      await client.query('COMMIT');
-      
-      console.log(`[Billing] Charged usage event ${usageEventId}: $${usageEvent.total_cost}`);
-      
+
+      await client.query("COMMIT");
+
+      console.log(
+        `[Billing] Charged usage event ${usageEventId}: $${usageEvent.total_cost}`,
+      );
+
       return ledgerTx;
-      
     } catch (error) {
-      await client.query('ROLLBACK');
-      
+      await client.query("ROLLBACK");
+
       // Mark usage event as failed
       try {
         await billingRepo.updateUsageEventStatus({
           id: usageEventId,
-          status: 'failed',
+          status: "failed",
           ledgerTransactionId: null,
           errorMessage: error.message,
-          client: null
+          client: null,
         });
       } catch (updateError) {
-        console.error('[Billing] Failed to update usage event status:', updateError);
+        console.error(
+          "[Billing] Failed to update usage event status:",
+          updateError,
+        );
       }
-      
+
       throw error;
     } finally {
       client.release();
@@ -225,17 +243,22 @@ class BillingService {
    * Charge usage event by idempotency key (convenience method)
    */
   async chargeByIdempotencyKey({ tenantId, idempotencyKey }) {
-    const usageEvent = await billingRepo.getUsageByIdempotencyKey(tenantId, idempotencyKey);
+    const usageEvent = await billingRepo.getUsageByIdempotencyKey(
+      tenantId,
+      idempotencyKey,
+    );
     if (!usageEvent) {
-      throw new Error(`Usage event not found with idempotency key: ${idempotencyKey}`);
+      throw new Error(
+        `Usage event not found with idempotency key: ${idempotencyKey}`,
+      );
     }
-    
+
     return this.chargeUsageEvent({ usageEventId: usageEvent.id, tenantId });
   }
 
   /**
    * Debit wallet (atomic transaction with ledger)
-   * 
+   *
    * @param {Object} params
    * @param {string} params.tenantId
    * @param {number} params.amount - Amount to debit (positive number)
@@ -256,27 +279,30 @@ class BillingService {
     description,
     metadata = {},
     createdBy = null,
-    client = null
+    client = null,
   }) {
     const shouldManageTransaction = !client;
     let managedClient;
-    
+
     if (shouldManageTransaction) {
       // Using pool from module
       managedClient = await pool.connect();
       client = managedClient;
-      await client.query('BEGIN');
+      await client.query("BEGIN");
     }
-    
+
     try {
       // Check idempotency
-      const existing = await billingRepo.getLedgerByIdempotencyKey(tenantId, idempotencyKey);
+      const existing = await billingRepo.getLedgerByIdempotencyKey(
+        tenantId,
+        idempotencyKey,
+      );
       if (existing) {
-        if (shouldManageTransaction) await client.query('COMMIT');
+        if (shouldManageTransaction) await client.query("COMMIT");
         console.log(`[Billing] Debit already processed: ${idempotencyKey}`);
         return existing;
       }
-      
+
       // Get wallet with lock
       const walletQuery = `
         SELECT * FROM billing_wallets
@@ -284,34 +310,34 @@ class BillingService {
         FOR UPDATE
       `;
       const walletResult = await client.query(walletQuery, [tenantId]);
-      
+
       if (walletResult.rows.length === 0) {
         throw new Error(`Wallet not found for tenant ${tenantId}`);
       }
-      
+
       const wallet = walletResult.rows[0];
       const balanceBefore = parseFloat(wallet.current_balance);
       const debitAmount = parseFloat(amount);
       const balanceAfter = balanceBefore - debitAmount;
-      
+
       // Check sufficient balance
       if (balanceAfter < 0) {
         throw new Error(
-          `Insufficient balance. Required: ${debitAmount}, Available: ${balanceBefore}`
+          `Insufficient balance. Required: ${debitAmount}, Available: ${balanceBefore}`,
         );
       }
-      
+
       // Update wallet balance
       await client.query(
-        'UPDATE billing_wallets SET current_balance = $1, updated_at = NOW() WHERE id = $2',
-        [balanceAfter, wallet.id]
+        "UPDATE billing_wallets SET current_balance = $1, updated_at = NOW() WHERE id = $2",
+        [balanceAfter, wallet.id],
       );
-      
+
       // Create ledger transaction
       const ledgerTx = await billingRepo.createLedgerTransaction({
         tenantId,
         walletId: wallet.id,
-        transactionType: 'debit',
+        transactionType: "debit",
         amount: -debitAmount, // Negative for debit
         balanceBefore,
         balanceAfter,
@@ -321,17 +347,18 @@ class BillingService {
         createdBy,
         description,
         metadata,
-        client
+        client,
       });
-      
-      if (shouldManageTransaction) await client.query('COMMIT');
-      
-      console.log(`[Billing] Debited $${debitAmount} from tenant ${tenantId}. New balance: $${balanceAfter}`);
-      
+
+      if (shouldManageTransaction) await client.query("COMMIT");
+
+      console.log(
+        `[Billing] Debited $${debitAmount} from tenant ${tenantId}. New balance: $${balanceAfter}`,
+      );
+
       return ledgerTx;
-      
     } catch (error) {
-      if (shouldManageTransaction) await client.query('ROLLBACK');
+      if (shouldManageTransaction) await client.query("ROLLBACK");
       throw error;
     } finally {
       if (managedClient) managedClient.release();
@@ -340,7 +367,7 @@ class BillingService {
 
   /**
    * Credit wallet (atomic transaction with ledger)
-   * 
+   *
    * @param {Object} params - Same as debitWalletAtomic
    * @returns {Promise<Object>} Ledger transaction
    */
@@ -353,26 +380,29 @@ class BillingService {
     description,
     metadata = {},
     createdBy = null,
-    client = null
+    client = null,
   }) {
     const shouldManageTransaction = !client;
     let managedClient;
-    
+
     if (shouldManageTransaction) {
       managedClient = await pool.connect();
       client = managedClient;
-      await client.query('BEGIN');
+      await client.query("BEGIN");
     }
-    
+
     try {
       // Check idempotency
-      const existing = await billingRepo.getLedgerByIdempotencyKey(tenantId, idempotencyKey);
+      const existing = await billingRepo.getLedgerByIdempotencyKey(
+        tenantId,
+        idempotencyKey,
+      );
       if (existing) {
-        if (shouldManageTransaction) await client.query('COMMIT');
+        if (shouldManageTransaction) await client.query("COMMIT");
         console.log(`[Billing] Credit already processed: ${idempotencyKey}`);
         return existing;
       }
-      
+
       // Get wallet with lock - prefer tenant-level (user_id IS NULL) but accept user-level too
       const walletQuery = `
         SELECT * FROM billing_wallets
@@ -382,9 +412,11 @@ class BillingService {
         FOR UPDATE
       `;
       const walletResult = await client.query(walletQuery, [tenantId]);
-      
-      console.log(`[Billing] Wallet lookup for tenant ${tenantId}: found ${walletResult.rows.length} rows`);
-      
+
+      console.log(
+        `[Billing] Wallet lookup for tenant ${tenantId}: found ${walletResult.rows.length} rows`,
+      );
+
       let wallet;
       if (walletResult.rows.length === 0) {
         // Create wallet if doesn't exist - explicitly set user_id to NULL
@@ -393,30 +425,34 @@ class BillingService {
           `INSERT INTO billing_wallets (tenant_id, user_id, current_balance, currency, status)
            VALUES ($1, NULL, 0, 'USD', 'active')
            RETURNING *`,
-          [tenantId]
+          [tenantId],
         );
         wallet = createResult.rows[0];
-        console.log(`[Billing] Created wallet with id ${wallet.id} for tenant ${tenantId}`);
+        console.log(
+          `[Billing] Created wallet with id ${wallet.id} for tenant ${tenantId}`,
+        );
       } else {
         wallet = walletResult.rows[0];
-        console.log(`[Billing] Using existing wallet with id ${wallet.id}, balance ${wallet.current_balance}`);
+        console.log(
+          `[Billing] Using existing wallet with id ${wallet.id}, balance ${wallet.current_balance}`,
+        );
       }
-      
+
       const balanceBefore = parseFloat(wallet.current_balance);
       const creditAmount = parseFloat(amount);
       const balanceAfter = balanceBefore + creditAmount;
-      
+
       // Update wallet balance
       await client.query(
-        'UPDATE billing_wallets SET current_balance = $1, updated_at = NOW() WHERE id = $2',
-        [balanceAfter, wallet.id]
+        "UPDATE billing_wallets SET current_balance = $1, updated_at = NOW() WHERE id = $2",
+        [balanceAfter, wallet.id],
       );
-      
+
       // Create ledger transaction
       const ledgerTx = await billingRepo.createLedgerTransaction({
         tenantId,
         walletId: wallet.id,
-        transactionType: referenceType === 'manual' ? 'topup' : 'credit',
+        transactionType: referenceType === "manual" ? "topup" : "credit",
         amount: creditAmount, // Positive for credit
         balanceBefore,
         balanceAfter,
@@ -426,17 +462,18 @@ class BillingService {
         createdBy,
         description,
         metadata,
-        client
+        client,
       });
-      
-      if (shouldManageTransaction) await client.query('COMMIT');
-      
-      console.log(`[Billing] Credited $${creditAmount} to tenant ${tenantId}. New balance: $${balanceAfter}`);
-      
+
+      if (shouldManageTransaction) await client.query("COMMIT");
+
+      console.log(
+        `[Billing] Credited $${creditAmount} to tenant ${tenantId}. New balance: $${balanceAfter}`,
+      );
+
       return ledgerTx;
-      
     } catch (error) {
-      if (shouldManageTransaction) await client.query('ROLLBACK');
+      if (shouldManageTransaction) await client.query("ROLLBACK");
       throw error;
     } finally {
       if (managedClient) managedClient.release();
@@ -449,25 +486,27 @@ class BillingService {
   async getWalletBalance(tenantId) {
     console.log(`[Billing] getWalletBalance called for tenant: ${tenantId}`);
     const wallet = await billingRepo.getOrCreateWallet(tenantId);
-    console.log(`[Billing] Wallet retrieved:`, { 
-      id: wallet.id, 
-      tenantId: wallet.tenant_id, 
+    console.log(`[Billing] Wallet retrieved:`, {
+      id: wallet.id,
+      tenantId: wallet.tenant_id,
       balance: wallet.current_balance,
-      reserved: wallet.reserved_balance
+      reserved: wallet.reserved_balance,
     });
-    
+
     const currentBalance = parseFloat(wallet.current_balance) || 0;
     const reservedBalance = parseFloat(wallet.reserved_balance) || 0;
-    
+
     return {
       walletId: wallet.id,
       tenantId: wallet.tenant_id,
       currentBalance: currentBalance,
       reservedBalance: reservedBalance,
       availableBalance: currentBalance - reservedBalance,
-      currency: wallet.currency || 'USD',
-      status: wallet.status || 'active',
-      lowBalanceThreshold: wallet.low_balance_threshold ? parseFloat(wallet.low_balance_threshold) : null
+      currency: wallet.currency || "USD",
+      status: wallet.status || "active",
+      lowBalanceThreshold: wallet.low_balance_threshold
+        ? parseFloat(wallet.low_balance_threshold)
+        : null,
     };
   }
 
@@ -516,24 +555,18 @@ class BillingService {
   /**
    * Create usage event and charge immediately (convenience method)
    * Useful for synchronous operations where you want to charge right away
-   * 
+   *
    * @returns {Promise<Object>} { usageEvent, ledgerTransaction }
    */
   async createAndChargeUsageEvent(params) {
     const usageEvent = await this.createUsageEvent(params);
     const ledgerTx = await this.chargeUsageEvent({
       usageEventId: usageEvent.id,
-      tenantId: params.tenantId
+      tenantId: params.tenantId,
     });
-    
+
     return { usageEvent, ledgerTransaction: ledgerTx };
   }
 }
 
 module.exports = new BillingService();
-
-
-
- 
-  
-\n

@@ -1,23 +1,23 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { pool } = require('../database/connection');
+const { pool } = require("../database/connection");
 
 // Initialize Gemini AI
 let genAI = null;
 let GoogleGenerativeAI = null;
 
 try {
-  GoogleGenerativeAI = require('@google/generative-ai').GoogleGenerativeAI;
+  GoogleGenerativeAI = require("@google/generative-ai").GoogleGenerativeAI;
   const geminiApiKey = process.env.GEMINI_API_KEY;
   if (!geminiApiKey) {
-    console.error('❌ GEMINI_API_KEY environment variable is not set!');
+    console.error("❌ GEMINI_API_KEY environment variable is not set!");
     genAI = null;
   } else {
     genAI = new GoogleGenerativeAI(geminiApiKey);
-    console.log('✅ Gemini AI initialized for profile summaries');
+    console.log("✅ Gemini AI initialized for profile summaries");
   }
 } catch (error) {
-  console.log('⚠️ Gemini AI package not found for profile summaries');
+  console.log("⚠️ Gemini AI package not found for profile summaries");
   genAI = null;
 }
 
@@ -25,14 +25,14 @@ try {
  * POST /api/profile-summary/generate
  * Generate a profile summary using Gemini AI based on lead/profile data
  */
-router.post('/generate', async (req, res) => {
+router.post("/generate", async (req, res) => {
   try {
     const { leadId, campaignId, profileData } = req.body;
 
     if (!leadId && !profileData) {
       return res.status(400).json({
         success: false,
-        error: 'Either leadId or profileData is required'
+        error: "Either leadId or profileData is required",
       });
     }
 
@@ -47,9 +47,9 @@ router.post('/generate', async (req, res) => {
           FROM information_schema.columns 
           WHERE table_name = 'campaign_leads' AND column_name = 'lead_data'
         `);
-        
+
         const hasLeadDataColumn = columnCheck.rows.length > 0;
-        
+
         // Build query based on which column exists
         let leadResult;
         if (hasLeadDataColumn) {
@@ -57,21 +57,21 @@ router.post('/generate', async (req, res) => {
             `SELECT cl.*, cl.lead_data as lead_data_full
              FROM campaign_leads cl
              WHERE cl.id = $1 AND cl.campaign_id = $2`,
-            [leadId, campaignId]
+            [leadId, campaignId],
           );
         } else {
           leadResult = await pool.query(
             `SELECT cl.*, cl.custom_fields as lead_data_full
              FROM campaign_leads cl
              WHERE cl.id = $1 AND cl.campaign_id = $2`,
-            [leadId, campaignId]
+            [leadId, campaignId],
           );
         }
 
         if (leadResult.rows.length === 0) {
           return res.status(404).json({
             success: false,
-            error: 'Lead not found'
+            error: "Lead not found",
           });
         }
 
@@ -79,22 +79,43 @@ router.post('/generate', async (req, res) => {
         const leadData = dbLead.lead_data_full || {};
 
         lead = {
-          name: dbLead.first_name && dbLead.last_name 
-            ? `${dbLead.first_name} ${dbLead.last_name}`.trim()
-            : dbLead.first_name || dbLead.last_name || leadData.name || leadData.employee_name || 'Unknown',
-          title: dbLead.title || leadData.title || leadData.employee_title || leadData.headline || '',
-          company: dbLead.company_name || leadData.company_name || leadData.company || '',
-          email: dbLead.email || leadData.email || '',
-          phone: dbLead.phone || leadData.phone || '',
-          linkedin_url: dbLead.linkedin_url || leadData.linkedin_url || leadData.employee_linkedin_url || '',
-          ...leadData
+          name:
+            dbLead.first_name && dbLead.last_name
+              ? `${dbLead.first_name} ${dbLead.last_name}`.trim()
+              : dbLead.first_name ||
+                dbLead.last_name ||
+                leadData.name ||
+                leadData.employee_name ||
+                "Unknown",
+          title:
+            dbLead.title ||
+            leadData.title ||
+            leadData.employee_title ||
+            leadData.headline ||
+            "",
+          company:
+            dbLead.company_name ||
+            leadData.company_name ||
+            leadData.company ||
+            "",
+          email: dbLead.email || leadData.email || "",
+          phone: dbLead.phone || leadData.phone || "",
+          linkedin_url:
+            dbLead.linkedin_url ||
+            leadData.linkedin_url ||
+            leadData.employee_linkedin_url ||
+            "",
+          ...leadData,
         };
       } catch (dbError) {
-        console.error('[Profile Summary] Error fetching lead from database:', dbError);
+        console.error(
+          "[Profile Summary] Error fetching lead from database:",
+          dbError,
+        );
         return res.status(500).json({
           success: false,
-          error: 'Failed to fetch lead data',
-          details: dbError.message
+          error: "Failed to fetch lead data",
+          details: dbError.message,
         });
       }
     }
@@ -102,19 +123,20 @@ router.post('/generate', async (req, res) => {
     if (!genAI) {
       return res.status(503).json({
         success: false,
-        error: 'Gemini AI is not available. Please set GEMINI_API_KEY environment variable.'
+        error:
+          "Gemini AI is not available. Please set GEMINI_API_KEY environment variable.",
       });
     }
 
     // Build profile information for Gemini
     const profileInfo = `
-Name: ${lead.name || 'Unknown'}
-Title: ${lead.title || lead.employee_title || lead.headline || 'Not specified'}
-Company: ${lead.company || lead.company_name || 'Not specified'}
-Location: ${lead.location || lead.city || lead.employee_city || 'Not specified'}
-LinkedIn: ${lead.linkedin_url || lead.employee_linkedin_url || 'Not available'}
-${lead.headline || lead.employee_headline ? `Headline: ${lead.headline || lead.employee_headline}` : ''}
-${lead.bio || lead.summary ? `Bio/Summary: ${lead.bio || lead.summary}` : ''}
+Name: ${lead.name || "Unknown"}
+Title: ${lead.title || lead.employee_title || lead.headline || "Not specified"}
+Company: ${lead.company || lead.company_name || "Not specified"}
+Location: ${lead.location || lead.city || lead.employee_city || "Not specified"}
+LinkedIn: ${lead.linkedin_url || lead.employee_linkedin_url || "Not available"}
+${lead.headline || lead.employee_headline ? `Headline: ${lead.headline || lead.employee_headline}` : ""}
+${lead.bio || lead.summary ? `Bio/Summary: ${lead.bio || lead.summary}` : ""}
     `.trim();
 
     // Create prompt for Gemini
@@ -132,9 +154,9 @@ ${profileInfo}
 
 Summary:`;
 
-    console.log('[Profile Summary] Generating summary for:', lead.name);
+    console.log("[Profile Summary] Generating summary for:", lead.name);
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const summary = response.text().trim();
@@ -154,34 +176,41 @@ Summary:`;
             `UPDATE campaign_leads 
              SET profile_summary = $1, updated_at = CURRENT_TIMESTAMP 
              WHERE id = $2 AND campaign_id = $3`,
-            [summary, leadId, campaignId]
+            [summary, leadId, campaignId],
           );
         } else {
           // Store in custom_fields as fallback
           const customFieldsResult = await pool.query(
             `SELECT custom_fields FROM campaign_leads WHERE id = $1 AND campaign_id = $2`,
-            [leadId, campaignId]
+            [leadId, campaignId],
           );
-          
+
           let customFields = {};
-          if (customFieldsResult.rows.length > 0 && customFieldsResult.rows[0].custom_fields) {
-            customFields = typeof customFieldsResult.rows[0].custom_fields === 'string'
-              ? JSON.parse(customFieldsResult.rows[0].custom_fields)
-              : customFieldsResult.rows[0].custom_fields;
+          if (
+            customFieldsResult.rows.length > 0 &&
+            customFieldsResult.rows[0].custom_fields
+          ) {
+            customFields =
+              typeof customFieldsResult.rows[0].custom_fields === "string"
+                ? JSON.parse(customFieldsResult.rows[0].custom_fields)
+                : customFieldsResult.rows[0].custom_fields;
           }
-          
+
           customFields.profile_summary = summary;
-          
+
           await pool.query(
             `UPDATE campaign_leads 
              SET custom_fields = $1, updated_at = CURRENT_TIMESTAMP 
              WHERE id = $2 AND campaign_id = $3`,
-            [JSON.stringify(customFields), leadId, campaignId]
+            [JSON.stringify(customFields), leadId, campaignId],
           );
         }
-        console.log('[Profile Summary] Summary saved to database');
+        console.log("[Profile Summary] Summary saved to database");
       } catch (saveError) {
-        console.error('[Profile Summary] Error saving summary to database:', saveError);
+        console.error(
+          "[Profile Summary] Error saving summary to database:",
+          saveError,
+        );
         // Don't fail the request if save fails
       }
     }
@@ -189,15 +218,17 @@ Summary:`;
     res.json({
       success: true,
       summary: summary,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
     });
-
   } catch (error) {
-    logger.error('[Profile Summary] Error generating advanced summary', { error: error.message, stack: error.stack });
+    logger.error("[Profile Summary] Error generating advanced summary", {
+      error: error.message,
+      stack: error.stack,
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to generate profile summary',
-      details: error.message
+      error: "Failed to generate profile summary",
+      details: error.message,
     });
   }
 });
@@ -206,7 +237,7 @@ Summary:`;
  * GET /api/profile-summary/:leadId
  * Get existing profile summary for a lead
  */
-router.get('/:leadId', async (req, res) => {
+router.get("/:leadId", async (req, res) => {
   try {
     const { leadId } = req.params;
     const { campaignId } = req.query;
@@ -214,7 +245,7 @@ router.get('/:leadId', async (req, res) => {
     if (!campaignId) {
       return res.status(400).json({
         success: false,
-        error: 'campaignId query parameter is required'
+        error: "campaignId query parameter is required",
       });
     }
 
@@ -230,20 +261,21 @@ router.get('/:leadId', async (req, res) => {
     if (columnCheck.rows.length > 0) {
       const result = await pool.query(
         `SELECT profile_summary FROM campaign_leads WHERE id = $1 AND campaign_id = $2`,
-        [leadId, campaignId]
+        [leadId, campaignId],
       );
       summary = result.rows.length > 0 ? result.rows[0].profile_summary : null;
     } else {
       // Check in custom_fields
       const result = await pool.query(
         `SELECT custom_fields FROM campaign_leads WHERE id = $1 AND campaign_id = $2`,
-        [leadId, campaignId]
+        [leadId, campaignId],
       );
-      
+
       if (result.rows.length > 0 && result.rows[0].custom_fields) {
-        const customFields = typeof result.rows[0].custom_fields === 'string'
-          ? JSON.parse(result.rows[0].custom_fields)
-          : result.rows[0].custom_fields;
+        const customFields =
+          typeof result.rows[0].custom_fields === "string"
+            ? JSON.parse(result.rows[0].custom_fields)
+            : result.rows[0].custom_fields;
         summary = customFields.profile_summary || null;
       }
     }
@@ -251,15 +283,14 @@ router.get('/:leadId', async (req, res) => {
     res.json({
       success: true,
       summary: summary,
-      exists: !!summary
+      exists: !!summary,
     });
-
   } catch (error) {
-    console.error('[Profile Summary] Error fetching summary:', error);
+    console.error("[Profile Summary] Error fetching summary:", error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch profile summary',
-      details: error.message
+      error: "Failed to fetch profile summary",
+      details: error.message,
     });
   }
 });
@@ -276,19 +307,20 @@ async function generateProfileSummary(lead, leadId = null, campaignId = null) {
     if (!genAI) {
       return {
         success: false,
-        error: 'Gemini AI is not available. Please set GEMINI_API_KEY environment variable.'
+        error:
+          "Gemini AI is not available. Please set GEMINI_API_KEY environment variable.",
       };
     }
 
     // Build profile information for Gemini
     const profileInfo = `
-Name: ${lead.name || 'Unknown'}
-Title: ${lead.title || lead.employee_title || lead.headline || 'Not specified'}
-Company: ${lead.company || lead.company_name || 'Not specified'}
-Location: ${lead.location || lead.city || lead.employee_city || 'Not specified'}
-LinkedIn: ${lead.linkedin_url || lead.employee_linkedin_url || 'Not available'}
-${lead.headline || lead.employee_headline ? `Headline: ${lead.headline || lead.employee_headline}` : ''}
-${lead.bio || lead.summary ? `Bio/Summary: ${lead.bio || lead.summary}` : ''}
+Name: ${lead.name || "Unknown"}
+Title: ${lead.title || lead.employee_title || lead.headline || "Not specified"}
+Company: ${lead.company || lead.company_name || "Not specified"}
+Location: ${lead.location || lead.city || lead.employee_city || "Not specified"}
+LinkedIn: ${lead.linkedin_url || lead.employee_linkedin_url || "Not available"}
+${lead.headline || lead.employee_headline ? `Headline: ${lead.headline || lead.employee_headline}` : ""}
+${lead.bio || lead.summary ? `Bio/Summary: ${lead.bio || lead.summary}` : ""}
     `.trim();
 
     // Create prompt for Gemini
@@ -306,9 +338,9 @@ ${profileInfo}
 
 Summary:`;
 
-    console.log('[Profile Summary] Generating summary for:', lead.name);
+    console.log("[Profile Summary] Generating summary for:", lead.name);
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const summary = response.text().trim();
@@ -328,47 +360,57 @@ Summary:`;
             `UPDATE campaign_leads 
              SET profile_summary = $1, updated_at = CURRENT_TIMESTAMP 
              WHERE id = $2 AND campaign_id = $3`,
-            [summary, leadId, campaignId]
+            [summary, leadId, campaignId],
           );
         } else {
           // Store in custom_fields as fallback
           const customFieldsResult = await pool.query(
             `SELECT custom_fields FROM campaign_leads WHERE id = $1 AND campaign_id = $2`,
-            [leadId, campaignId]
+            [leadId, campaignId],
           );
-          
+
           let customFields = {};
-          if (customFieldsResult.rows.length > 0 && customFieldsResult.rows[0].custom_fields) {
-            customFields = typeof customFieldsResult.rows[0].custom_fields === 'string'
-              ? JSON.parse(customFieldsResult.rows[0].custom_fields)
-              : customFieldsResult.rows[0].custom_fields;
+          if (
+            customFieldsResult.rows.length > 0 &&
+            customFieldsResult.rows[0].custom_fields
+          ) {
+            customFields =
+              typeof customFieldsResult.rows[0].custom_fields === "string"
+                ? JSON.parse(customFieldsResult.rows[0].custom_fields)
+                : customFieldsResult.rows[0].custom_fields;
           }
-          
+
           customFields.profile_summary = summary;
-          
+
           await pool.query(
             `UPDATE campaign_leads 
              SET custom_fields = $1, updated_at = CURRENT_TIMESTAMP 
              WHERE id = $2 AND campaign_id = $3`,
-            [JSON.stringify(customFields), leadId, campaignId]
+            [JSON.stringify(customFields), leadId, campaignId],
           );
         }
-        console.log('[Profile Summary] Summary saved to database');
+        console.log("[Profile Summary] Summary saved to database");
       } catch (saveError) {
-        console.error('[Profile Summary] Error saving summary to database:', saveError);
+        console.error(
+          "[Profile Summary] Error saving summary to database:",
+          saveError,
+        );
         // Don't fail if save fails, still return the summary
       }
     }
 
     return {
       success: true,
-      summary: summary
+      summary: summary,
     };
   } catch (error) {
-    logger.error('[Profile Summary] Error generating summary', { error: error.message, stack: error.stack });
+    logger.error("[Profile Summary] Error generating summary", {
+      error: error.message,
+      stack: error.stack,
+    });
     return {
       success: false,
-      error: error.message || 'Failed to generate profile summary'
+      error: error.message || "Failed to generate profile summary",
     };
   }
 }
@@ -376,10 +418,3 @@ Summary:`;
 // Export router as default, and also export the helper function
 module.exports = router;
 module.exports.generateProfileSummary = generateProfileSummary;
-
-
-
-
- 
-  
-\n

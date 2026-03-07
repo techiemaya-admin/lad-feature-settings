@@ -1,12 +1,12 @@
 /**
  * Membership Model
- * 
+ *
  * Junction entity for user-tenant relationships
  * Manages which users belong to which tenants and their roles
- * 
+ *
  * Table: memberships
  * Schema: Core infrastructure table
- * 
+ *
  * FUTURE ENHANCEMENTS:
  * 1. Permission-based access (RBAC) - membership_permissions table
  * 2. Invitation flow - tenant_invitations table with email/token/expiry
@@ -18,10 +18,10 @@
 class MembershipModel {
   // Role constants to avoid hardcoded strings
   static ROLES = {
-    OWNER: 'owner',
-    ADMIN: 'admin',
-    MEMBER: 'member',
-    VIEWER: 'viewer'
+    OWNER: "owner",
+    ADMIN: "admin",
+    MEMBER: "member",
+    VIEWER: "viewer",
   };
 
   constructor(db) {
@@ -30,7 +30,7 @@ class MembershipModel {
 
   /**
    * Add user to tenant with a specific role
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @param {string} role - Role (e.g., 'owner', 'admin', 'member', 'viewer')
@@ -63,7 +63,7 @@ class MembershipModel {
 
   /**
    * Remove user from tenant (soft delete)
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<boolean>} Success
@@ -81,7 +81,7 @@ class MembershipModel {
 
   /**
    * Update user's role in a tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @param {string} newRole - New role
@@ -107,7 +107,7 @@ class MembershipModel {
 
   /**
    * Get user's role in a tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<string|null>} Role or null
@@ -125,7 +125,7 @@ class MembershipModel {
 
   /**
    * Get membership details
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Object|null>} Membership or null
@@ -154,7 +154,7 @@ class MembershipModel {
 
   /**
    * Get all members of a tenant
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @param {Object} options - Query options
    * @param {string} options.role - Filter by role
@@ -191,7 +191,7 @@ class MembershipModel {
 
   /**
    * Get all tenants for a user
-   * 
+   *
    * @param {string} userId - User ID
    * @returns {Promise<Array>} Tenant memberships
    */
@@ -218,7 +218,7 @@ class MembershipModel {
 
   /**
    * Check if user is a member of tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<boolean>} Is member
@@ -237,7 +237,7 @@ class MembershipModel {
 
   /**
    * Check if user has specific role(s) in tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @param {string|Array<string>} roles - Role(s) to check
@@ -245,7 +245,7 @@ class MembershipModel {
    */
   async hasRole(userId, tenantId, roles) {
     const roleArray = Array.isArray(roles) ? roles : [roles];
-    
+
     const query = `
       SELECT 1
       FROM memberships
@@ -262,18 +262,21 @@ class MembershipModel {
 
   /**
    * Check if user is owner/admin of tenant
-   * 
+   *
    * @param {string} userId - User ID
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<boolean>} Is admin
    */
   async isAdmin(userId, tenantId) {
-    return this.hasRole(userId, tenantId, [MembershipModel.ROLES.OWNER, MembershipModel.ROLES.ADMIN]);
+    return this.hasRole(userId, tenantId, [
+      MembershipModel.ROLES.OWNER,
+      MembershipModel.ROLES.ADMIN,
+    ]);
   }
 
   /**
    * Get member count for a tenant
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<number>} Member count
    */
@@ -290,7 +293,7 @@ class MembershipModel {
 
   /**
    * Get members by role
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @param {string} role - Role to filter by
    * @returns {Promise<Array>} Members with specified role
@@ -315,7 +318,7 @@ class MembershipModel {
 
   /**
    * Get tenant owners
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Array>} Owner users
    */
@@ -325,7 +328,7 @@ class MembershipModel {
 
   /**
    * Transfer ownership (make user owner, demote current owner)
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @param {string} currentOwnerId - Current owner user ID
    * @param {string} newOwnerId - New owner user ID
@@ -333,26 +336,26 @@ class MembershipModel {
    */
   async transferOwnership(tenantId, currentOwnerId, newOwnerId) {
     const client = await this.pool.connect();
-    
+
     try {
-      await client.query('BEGIN');
+      await client.query("BEGIN");
 
       // Demote current owner to admin
       await client.query(
-        'UPDATE memberships SET role = $1, updated_at = NOW() WHERE user_id = $2 AND tenant_id = $3 AND deleted_at IS NULL',
-        [MembershipModel.ROLES.ADMIN, currentOwnerId, tenantId]
+        "UPDATE memberships SET role = $1, updated_at = NOW() WHERE user_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
+        [MembershipModel.ROLES.ADMIN, currentOwnerId, tenantId],
       );
 
       // Promote new owner
       await client.query(
-        'UPDATE memberships SET role = $1, updated_at = NOW() WHERE user_id = $2 AND tenant_id = $3 AND deleted_at IS NULL',
-        [MembershipModel.ROLES.OWNER, newOwnerId, tenantId]
+        "UPDATE memberships SET role = $1, updated_at = NOW() WHERE user_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
+        [MembershipModel.ROLES.OWNER, newOwnerId, tenantId],
       );
 
-      await client.query('COMMIT');
+      await client.query("COMMIT");
       return true;
     } catch (error) {
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
@@ -361,14 +364,14 @@ class MembershipModel {
 
   /**
    * Batch add users to tenant
-   * 
+   *
    * @param {Array<Object>} memberships - Array of {userId, tenantId, role}
    * @returns {Promise<Array>} Created memberships
    */
   async batchAddMembers(memberships) {
     const values = [];
     const placeholders = [];
-    
+
     memberships.forEach((m, idx) => {
       const offset = idx * 3;
       placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3})`);
@@ -377,7 +380,7 @@ class MembershipModel {
 
     const query = `
       INSERT INTO memberships (user_id, tenant_id, role, created_at)
-      VALUES ${placeholders.join(', ')}
+      VALUES ${placeholders.join(", ")}
       ON CONFLICT (user_id, tenant_id) DO NOTHING
       RETURNING id, user_id, tenant_id, role, created_at
     `;
@@ -388,7 +391,7 @@ class MembershipModel {
 
   /**
    * Get membership statistics for a tenant
-   * 
+   *
    * @param {string} tenantId - Tenant ID
    * @returns {Promise<Object>} Statistics
    */
@@ -412,9 +415,3 @@ class MembershipModel {
 }
 
 module.exports = MembershipModel;
-
-
-
- 
-  
-\n

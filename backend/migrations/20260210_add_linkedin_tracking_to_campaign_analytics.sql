@@ -33,9 +33,3 @@ FROM information_schema.columns
 WHERE table_name = 'campaign_analytics'
   AND column_name IN ('account_name', 'provider_account_id', 'lead_linkedin')
 ORDER BY ordinal_position;
-
-
-
- 
-  
-\n
