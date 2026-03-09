@@ -1,0 +1,292 @@
+name: Sync to LAD Main Repositories
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ⚠️ IMPORTANT: This workflow ONLY syncs settings-specific files:
+#   ✅ Backend: /backend/features/settings/
+#   ✅ Frontend: /frontend/sdk/features/settings/ and /frontend/components/settings/
+#   ❌ Blocked: /backend/core/, /backend/config/, /backend/shared/, /backend/feature_flags/
+#   ❌ Blocked: Any non-settings backend directories
+
+jobs:
+  validate-paths:
+    runs-on: ubuntu-latest
+    name: Validate settings-only sync
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 10
+
+      - name: Check commit contains only settings files
+        run: |
+          echo "🔐 SECURITY CHECK: Validating commit paths..."
+          echo ""
+
+          # Get changed files from last commit
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+
+          echo "📋 Files in this commit:"
+          echo "$CHANGED_FILES" | sed 's/^/   /'
+          echo ""
+
+          # Check for forbidden directories
+          FORBIDDEN_PATTERNS=(
+            '^backend/core/'
+            '^backend/config/'
+            '^backend/shared/'
+            '^backend/feature_flags/'
+            '^backend/migrations/'
+            '^backend/scripts/'
+          )
+
+          HAS_FORBIDDEN=0
+          for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+            if echo "$CHANGED_FILES" | grep -E "$pattern" > /dev/null; then
+              echo "❌ BLOCKED: Found files in forbidden directory:"
+              echo "$CHANGED_FILES" | grep -E "$pattern" | sed 's/^/   ❌ /'
+              HAS_FORBIDDEN=1
+            fi
+          done
+
+          if [ $HAS_FORBIDDEN -eq 1 ]; then
+            echo ""
+            echo "❌ VALIDATION FAILED"
+            echo "   Only these paths are allowed:"
+            echo "   ✅ backend/features/settings/"
+            echo "   ✅ frontend/"
+            exit 1
+          fi
+
+          # Check that at least some settings files are committed
+          if echo "$CHANGED_FILES" | grep -E '(backend/features/settings/|frontend/)' > /dev/null; then
+            echo "✅ VALIDATION PASSED"
+            echo "   All files are from allowed settings paths"
+          else
+            echo "⚠️  WARNING: No settings files detected in commit"
+            echo "   (This might be OK if only updating docs or configs)"
+          fi
+
+  sync-backend:
+    needs: [validate-paths]
+    runs-on: ubuntu-latest
+    # Only run on main branch
+    if: github.ref == 'refs/heads/main' && success()
+    steps:
+      - name: Checkout feature repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Checkout LAD-Backend
+        uses: actions/checkout@v3
+        with:
+          repository: techiemaya-admin/LAD-Backend
+          token: ${{ secrets.LAD_REPO_TOKEN }}
+          path: lad-backend
+          ref: develop
+
+      - name: Copy backend files
+        run: |
+          echo "📦 Starting backend file sync..."
+
+          # CRITICAL: Verify source exists
+          if [ ! -d "backend/features/settings" ]; then
+            echo "❌ Source directory not found: backend/features/settings"
+            exit 1
+          fi
+
+          # SAFETY CHECK: Verify no core, config, shared files are in the commit
+          echo "🔒 Verifying no non-settings files are included..."
+          if git diff --name-only HEAD~1 HEAD | grep -E '^backend/(core|config|shared)/' > /dev/null; then
+            echo "❌ BLOCKED: Found non-settings files in commit (core/config/shared)"
+            echo "   Only backend/features/settings/ and frontend/ should be committed"
+            git diff --name-only HEAD~1 HEAD | grep -E '^backend/(core|config|shared)/' | sed 's/^/   ❌ /'
+            exit 1
+          fi
+
+          # Ensure destination exists
+          mkdir -p lad-backend/features/settings
+
+          # Sync ONLY settings files with strict exclusions
+          if ! rsync -av \
+            --filter='+ /manifest.js' \
+            --filter='+ /index.js' \
+            --filter='+ /package.json' \
+            --filter='+ *.js' \
+            --filter='+ *.json' \
+            --filter='+ *.sql' \
+            --filter='+ *.ts' \
+            --filter='+ *.tsx' \
+            --filter='+ *.md' \
+            --filter='+ *.yml' \
+            --filter='+ *.yaml' \
+            --filter='- /.*' \
+            --exclude='.env*' \
+            --exclude='*.local.js' \
+            --exclude='*.test.js' \
+            --exclude='*.test.ts' \
+            --exclude='*.spec.js' \
+            --exclude='*.spec.ts' \
+            --exclude='node_modules' \
+            --exclude='.DS_Store' \
+            --exclude='.git*' \
+            --exclude='coverage' \
+            --exclude='dist' \
+            --exclude='build' \
+            backend/features/settings/ lad-backend/features/settings/; then
+            echo "❌ rsync failed!"
+            exit 1
+          fi
+
+          echo "✅ Backend files synced successfully"
+          echo "📋 Synced files:"
+          find lad-backend/features/settings -type f | wc -l | xargs echo "   Total files:"
+
+      - name: Verify critical files
+        run: |
+          echo "🔍 Verifying critical files..."
+          MISSING=0
+
+          # Check for essential files
+          CRITICAL_FILES=(
+            "lad-backend/features/settings/manifest.js"
+            "lad-backend/features/settings/index.js"
+            "lad-backend/features/settings/routes/index.js"
+          )
+
+          for file in "${CRITICAL_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ CRITICAL: $file is missing!"
+              MISSING=1
+            else
+              echo "✅ $file exists"
+            fi
+          done
+
+          if [ $MISSING -eq 1 ]; then
+            echo "❌ Sync validation failed - critical files missing"
+            exit 1
+          fi
+
+          echo "✅ All critical files verified"
+
+      - name: Commit and push to LAD-Backend
+        working-directory: lad-backend
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          # Clean up any unstaged changes outside features/settings
+          echo "🧹 Cleaning working directory..."
+          git status
+
+          # Stash any uncommitted changes first
+          if ! git diff --quiet || ! git diff --staged --quiet; then
+            echo "⚠️ Found uncommitted changes, stashing..."
+            git stash
+          fi
+
+          # Pull latest changes to avoid conflicts
+          echo "📥 Pulling latest changes..."
+          git pull origin develop --rebase || {
+            echo "⚠️ Rebase conflict detected"
+            git rebase --abort
+            git stash pop || true
+            exit 1
+          }
+
+          # Restore any stashed changes
+          if git stash list | grep -q .; then
+            echo "📥 Restoring stashed changes..."
+            git stash pop || true
+          fi
+
+          # Stage ONLY settings changes
+          git add features/settings/
+
+          # SAFETY: Verify only settings files are staged
+          echo "🔍 Verifying staged files..."
+          if git diff --staged --name-only | grep -v '^features/settings/' > /dev/null; then
+            echo "❌ BLOCKED: Found non-settings files in staging area!"
+            git diff --staged --name-only | grep -v '^features/settings/' | sed 's/^/   ❌ /'
+            git reset
+            exit 1
+          fi
+
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "ℹ️ No changes to commit"
+            exit 0
+          fi
+
+          # Show what changed
+          echo "📝 Changes to be committed:"
+          git diff --staged --stat
+          echo ""
+          echo "📋 Staging validation:"
+          echo "   ✅ All staged files are from features/settings/"
+
+          # Commit
+          git commit -m "feat(settings): auto-sync from feature repo" \
+            -m "Synced from: ${{ github.repository }}@${{ github.sha }}" \
+            -m "Triggered by: ${{ github.actor }}" \
+            -m "Timestamp: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)" \
+            -m "Workflow: ${{ github.workflow }}"
+
+          # Push with retry logic
+          echo "📤 Pushing to LAD-Backend..."
+          for attempt in {1..3}; do
+            if git push origin develop; then
+              echo "✅ Push successful on attempt $attempt"
+              exit 0
+            fi
+            
+            echo "⚠️ Push failed, retrying ($attempt/3)..."
+            sleep 2
+            git pull origin develop --rebase || {
+              echo "❌ Rebase failed on retry"
+              git rebase --abort
+              exit 1
+            }
+          done
+
+          echo "❌ Failed to push after 3 attempts"
+          exit 1
+
+  notify-success:
+    needs: [validate-paths, sync-backend]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Success notification
+        run: |
+          echo "✅ settings sync completed successfully"
+          echo ""
+          echo "🔐 Security: Path validation passed"
+          echo "📤 Backend: Synced to LAD-Backend/feature/settings"
+          echo "📤 Frontend: Synced to LAD-Frontend/sdk/features/settings"
+
+  notify-failure:
+    needs: [validate-paths, sync-backend]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Failure notification
+        run: |
+          echo "❌ settings sync failed"
+          echo ""
+          if [ "${{ needs.validate-paths.result }}" = "failure" ]; then
+            echo "🔐 PATH VALIDATION FAILED"
+            echo "   Reason: Non-settings files detected in commit"
+            echo "   Only these paths are allowed:"
+            echo "   • backend/features/settings/"
+            echo "   • frontend/sdk/features/settings/"
+            echo "   • frontend/components/settings/"
+          else
+            echo "See workflow logs for sync errors"
+          fi
+          exit 1
